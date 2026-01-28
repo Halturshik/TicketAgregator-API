@@ -6,6 +6,7 @@ toolchain go1.24.12
 
 require (
 	github.com/go-chi/chi/v5 v5.2.4
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/joho/godotenv v1.5.1
 	github.com/pressly/goose v2.7.0+incompatible
 	golang.org/x/crypto v0.47.0
