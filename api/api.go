@@ -3,20 +3,17 @@ package api
 import (
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 )
 
-type Store interface {
-}
 
 type API struct {
-	Store Store
 	AuthService *auth.Service
 }
 
-func NewAPI(store Store) *API {
+func NewAPI(store auth.UserStore, mailer auth.Mailer, redisClient *redis.Client) *API {
 	return &API{
-		Store:       store,
-		AuthService: auth.NewService(store),
+		AuthService: auth.NewService(store, mailer, redisClient),
 	}
 }
 

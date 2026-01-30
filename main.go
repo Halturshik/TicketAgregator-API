@@ -12,6 +12,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/database"
 	"github.com/Halturshik/TicketAgregator-API/internal/config"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
+	"github.com/Halturshik/TicketAgregator-API/internal/mailer"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
@@ -32,8 +33,15 @@ func main() {
 	}
 	defer dbConnection.Close()
 
+	redisClient, err := database.RedisConnection(cfg)
+	if err != nil {
+		logger.Error("Ошибка при подключении к Redis: %v", err)
+	}
+	defer redisClient.Close()
+
 	store := database.NewStore(dbConnection)
-	apiServer := api.NewAPI(store)
+	mail := &mailer.ConsoleMailer{}
+	apiServer := api.NewAPI(store, mail, redisClient)
 
 	r := chi.NewRouter()
 
