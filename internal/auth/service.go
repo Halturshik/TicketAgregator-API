@@ -2,27 +2,15 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/database/errs"
 	"github.com/Halturshik/TicketAgregator-API/database/model"
+	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrInvalidFirstName  = errors.New("Некорректно указано имя")
-	ErrInvalidMiddleName = errors.New("Некорректно указано отчество")
-	ErrInvalidLastName   = errors.New("Некорректно указана фамилия")
-	ErrInvalidEmail      = errors.New("Некорректный адрес электронной почты")
-	ErrInvalidBirthDate  = errors.New("Некорректная дата рождения. Регистрация доступна для лиц, достигших 14 лет")
-	ErrCodeExpired       = errors.New("Срок действия кода истек")
-	ErrInvalidCode       = errors.New("Неверный код подтверждения")
-	ErrInvalidPassword   = errors.New("Пароль должен состоять из 8 и более символов и содержать как минимум одну латинскую букву и одну цифру")
-	ErrEmailIsUsed       = errors.New("Пользователь с таким email уже существует")
 )
 
 const emailVerify = "email_verify:"
@@ -67,28 +55,34 @@ func (s *Service) StartRegistration(ctx context.Context, in RegisterInput) error
 	in.Email = cleaning.Email(in.Email)
 	in.Password = cleaning.Password(in.Password)
 
+	fields := map[string]string{}
+
 	if !validator.NotEmpty(in.FirstName) || !validator.ValidName(in.FirstName) {
-		return ErrInvalidFirstName
+		fields[apierror.FieldFirstName] = apierror.ErrInvalidFirstName
 	}
 
 	if validator.NotEmpty(in.MiddleName) && !validator.ValidName(in.MiddleName) {
-		return ErrInvalidMiddleName
+		fields[apierror.FieldMiddleName] = apierror.ErrInvalidMiddleName
 	}
 
 	if !validator.NotEmpty(in.LastName) || !validator.ValidName(in.LastName) {
-		return ErrInvalidLastName
+		fields[apierror.FieldLastName] = apierror.ErrInvalidLastName
 	}
 
 	if !validator.ValidEmail(in.Email) {
-		return ErrInvalidEmail
+		fields[apierror.FieldEmail] = apierror.ErrInvalidEmail
 	}
 
 	if _, err := validator.ValidBirthDate(in.BirthDate); err != nil {
-		return ErrInvalidBirthDate
+		fields[apierror.FieldBirthDate] = apierror.ErrInvalidBirthDate
 	}
 
 	if !validator.ValidPassword(in.Password) {
-		return ErrInvalidPassword
+		fields[apierror.FieldPassword] = apierror.ErrInvalidPassword
+	}
+
+	if len(fields) > 0 {
+		return apierror.Validation(fields)
 	}
 
 	exists, err := s.store.IsEmailExists(ctx, in.Email)
@@ -96,7 +90,7 @@ func (s *Service) StartRegistration(ctx context.Context, in RegisterInput) error
 		return err
 	}
 	if exists {
-		return ErrEmailIsUsed
+		return apierror.ErrEmailIsUsed
 	}
 
 	code, err := GenerateVerificationCode()
@@ -112,18 +106,18 @@ func (s *Service) StartRegistration(ctx context.Context, in RegisterInput) error
 	return s.mailer.SendVerificationEmail(in.Email, code)
 }
 
-// нужно обсудить с Ксюшей, сможет ли она хранить и повторно прислывать данные с кодом, а то они сейчас теряются
+// нужно обсудить с Ксюшей, сможет ли она хранить и повторно присылать данные с кодом, а то они сейчас теряются
 func (s *Service) ConfirmRegistration(ctx context.Context, in RegisterInput, code string) error {
 	storedCode, err := s.redis.Get(ctx, emailVerify+in.Email).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return ErrCodeExpired
+			return apierror.ErrCodeExpired
 		}
 		return err
 	}
 
 	if storedCode != code {
-		return ErrInvalidCode
+		return apierror.ErrInvalidVerificationCode
 	}
 
 	birthDate, _ := validator.ValidBirthDate(in.BirthDate)
@@ -146,7 +140,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in RegisterInput, cod
 	_, err = s.store.CreateUser(ctx, dbParams)
 	if err != nil {
 		if err == errs.ErrDuplicateEmail {
-			return ErrEmailIsUsed
+			return apierror.ErrEmailIsUsed
 		}
 		return err
 	}
