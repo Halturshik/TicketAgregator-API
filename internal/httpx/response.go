@@ -1,9 +1,10 @@
-package api
+package httpx
 
 import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 )
 
@@ -13,8 +14,9 @@ func writeJSON(w http.ResponseWriter, status int, data any) error {
 	resp, err := json.Marshal(data)
 	if err != nil {
 		logger.Error("Ошибка при формировании JSON: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		resp = []byte(`{"error":"ошибка при формировании JSON"}`)
+		internalErr := apierror.ErrInternal
+		w.WriteHeader(internalErr.Status)
+		resp, _ = json.Marshal(internalErr)
 	} else {
 		w.WriteHeader(status)
 	}

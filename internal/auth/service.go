@@ -15,15 +15,6 @@ import (
 
 const emailVerify = "email_verify:"
 
-type UserStore interface {
-	IsEmailExists(ctx context.Context, email string) (bool, error)
-	CreateUser(ctx context.Context, u model.CreateUserParams) (int64, error)
-}
-
-type Mailer interface {
-	SendVerificationEmail(to string, code string) error
-}
-
 type Service struct {
 	store  UserStore
 	mailer Mailer

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
+	"github.com/Halturshik/TicketAgregator-API/internal/httpx"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 )
 
@@ -39,5 +40,5 @@ func (api *API) handleAPIError(w http.ResponseWriter, r *http.Request, err error
 		logger.Error("server error: %v", err)
 	}
 
-	writeJSON(w, apiErr.Status, apiErr)
+	httpx.WriteJSON(w, apiErr.Status, apiErr)
 }

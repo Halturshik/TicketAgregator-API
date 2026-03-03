@@ -7,6 +7,7 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
+	"github.com/Halturshik/TicketAgregator-API/internal/httpx"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 )
 
@@ -21,8 +22,7 @@ func (api *API) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 		logger.Warn("Ошибка при регистрации: %v", err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
-
-	writeJSON(w, http.StatusCreated, map[string]any{"message": fmt.Sprintf("Код подтверждения отправлен на адрес электронной почты: %s", req.Email)})
+	return httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": fmt.Sprintf("Код подтверждения отправлен на адрес электронной почты: %s", req.Email)})
 }
 
 func (api *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Request) error {
@@ -41,5 +41,24 @@ func (api *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Reques
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{"message": fmt.Sprintf("%s, вы успешно прошли регистрацию. Хороших поездок!", req.FirstName)})
+	logger.Info("успешная регистрация для email: %s", req.Email)
+	return httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": fmt.Sprintf("%s, вы успешно прошли регистрацию. Хороших поездок!", req.FirstName)})
+}
+
+func (api *API) LoginHandler(w http.ResponseWriter, r *http.Request) error {
+	var req auth.LoginInput
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Warn("Ошибка: не удалось прочитать тело запроса: %v", err)
+		return apierror.ErrInvalidJSON
+	}
+
+	out, err := api.AuthService.Login(r.Context(), req)
+	if err != nil {
+		logger.Warn("Ошибка при авторизации: %v", err)
+		return apierror.Wrap(err, apierror.ErrInternal)
+	}
+
+	logger.Info("успешная авторизация для email: %s", req.Email)
+	return httpx.WriteJSON(w, http.StatusOK, out)
 }

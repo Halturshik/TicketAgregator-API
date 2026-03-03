@@ -11,3 +11,14 @@ type CreateUserParams struct {
 	PasswordHash string
 	IsRussian    bool
 }
+
+type User struct {
+	ID           int
+	FirstName    string
+	MiddleName   string
+	LastName     string
+	BirthDate    time.Time
+	Email        string
+	PasswordHash string
+	IsRussian    bool
+}

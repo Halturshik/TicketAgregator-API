@@ -39,7 +39,7 @@ const (
 var (
 	ErrInternal = &APIError{
 		Code:    "internal_error",
-		Message: "Внутренняя ошибка сервера",
+		Message: "Что-то пошло не так. Повторите попытку позже",
 		Status:  http.StatusInternalServerError,
 	}
 
@@ -65,6 +65,30 @@ var (
 		Code:    "email_already_used",
 		Message: "Пользователь с таким email уже существует",
 		Status:  http.StatusConflict,
+	}
+
+	ErrInvalidCredentials = &APIError{
+		Code:    "invalid_credentials",
+		Message: "Неверный email или пароль",
+		Status:  http.StatusUnauthorized,
+	}
+
+	ErrUnauthorized = &APIError{
+		Code:    "unauthorized",
+		Message: "Требуется авторизация",
+		Status:  http.StatusUnauthorized,
+	}
+
+	ErrInvalidToken = &APIError{
+		Code:    "invalid_token",
+		Message: "Неверный или просроченный токен",
+		Status:  http.StatusUnauthorized,
+	}
+
+	ErrInvalidTokenFormat = &APIError{
+		Code:    "invalid_token_format",
+		Message: "Ожидается Bearer <token>",
+		Status:  http.StatusUnauthorized,
 	}
 )
 
@@ -97,7 +121,7 @@ func Wrap(err error, fallback *APIError) *APIError {
 func Validation(fields map[string]string) *APIError {
 	e := &APIError{
 		Code:    "validation_failed",
-		Message: "Ошибка валидации данных",
+		Message: "Ошибка при указании данных",
 		Status:  http.StatusUnprocessableEntity,
 		Fields:  fields,
 	}
