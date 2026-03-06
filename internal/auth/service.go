@@ -2,30 +2,28 @@ package auth
 
 import (
 	"context"
-	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/database/errs"
 	"github.com/Halturshik/TicketAgregator-API/database/model"
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
+	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 )
 
-const emailVerify = "email_verify:"
-
 type Service struct {
-	store  UserStore
-	mailer Mailer
-	redis  *redis.Client
+	store       UserStore
+	mailer      Mailer
+	codeService *CodeService
 }
 
 func NewService(store UserStore, mailer Mailer, redisClient *redis.Client) *Service {
 	return &Service{
-		store:  store,
-		mailer: mailer,
-		redis:  redisClient,
+		store:       store,
+		mailer:      mailer,
+		codeService: NewCodeService(redisClient),
 	}
 }
 
@@ -78,43 +76,42 @@ func (s *Service) StartRegistration(ctx context.Context, in RegisterInput) error
 
 	exists, err := s.store.IsEmailExists(ctx, in.Email)
 	if err != nil {
+		logger.Error("Ошибка при проверке существования email %s: %v", in.Email, err)
 		return err
 	}
 	if exists {
+		logger.Warn("Попытка регистрации на уже существующий email: %s", in.Email)
 		return apierror.ErrEmailIsUsed
 	}
 
-	code, err := GenerateVerificationCode()
+	code, err := s.codeService.Generate(ctx, in.Email)
 	if err != nil {
+		logger.Warn("Ошибка при генерации кода для %s: %v", in.Email, err)
 		return err
 	}
 
-	err = s.redis.Set(ctx, emailVerify+in.Email, code, 2*time.Minute).Err()
-	if err != nil {
+	if err := s.mailer.SendVerificationEmail(in.Email, code); err != nil {
+		logger.Warn("Ошибка при отправке письма для %s: %v", in.Email, err)
 		return err
 	}
 
-	return s.mailer.SendVerificationEmail(in.Email, code)
+	logger.Info("Код подтверждения отправлен на %s", in.Email)
+	return nil
 }
 
 // нужно обсудить с Ксюшей, сможет ли она хранить и повторно присылать данные с кодом, а то они сейчас теряются
 func (s *Service) ConfirmRegistration(ctx context.Context, in RegisterInput, code string) error {
-	storedCode, err := s.redis.Get(ctx, emailVerify+in.Email).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return apierror.ErrCodeExpired
-		}
-		return err
-	}
+	in.Email = cleaning.Email(in.Email)
 
-	if storedCode != code {
-		return apierror.ErrInvalidVerificationCode
+	if err := s.codeService.Verify(ctx, in.Email, code); err != nil {
+		return err
 	}
 
 	birthDate, _ := validator.ValidBirthDate(in.BirthDate)
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
+		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return err
 	}
 
@@ -133,10 +130,15 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in RegisterInput, cod
 		if err == errs.ErrDuplicateEmail {
 			return apierror.ErrEmailIsUsed
 		}
+		logger.Error("Ошибка при создании пользователя %s: %v", in.Email, err)
 		return err
 	}
 
-	s.redis.Del(ctx, emailVerify+in.Email)
+	if err := s.codeService.Clear(ctx, in.Email); err != nil {
+		logger.Warn("Ошибка при инвалидации кода после регистрации %s: %v", in.Email, err)
+		return err
+	}
 
+	logger.Info("Успешная регистрация пользователя: %s", in.Email)
 	return nil
 }

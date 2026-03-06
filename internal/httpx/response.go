@@ -8,7 +8,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 )
 
-func writeJSON(w http.ResponseWriter, status int, data any) error {
+func WriteJSON(w http.ResponseWriter, status int, data any) error {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	resp, err := json.Marshal(data)

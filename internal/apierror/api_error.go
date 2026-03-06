@@ -90,6 +90,18 @@ var (
 		Message: "Ожидается Bearer <token>",
 		Status:  http.StatusUnauthorized,
 	}
+
+	ErrTooManyAttempts = &APIError{
+		Code:    "too_many_attempts",
+		Message: "Превышено количество попыток ввода кода подтверждения. Попробуйте позже",
+		Status:  http.StatusTooManyRequests,
+	}
+
+	ErrCodeRateLimited = &APIError{
+		Code:    "rate_limit_exceeded",
+		Message: "Превышено количество запросов кода подтверждения. Попробуйте позже",
+		Status:  http.StatusTooManyRequests,
+	}
 )
 
 func New(code, message string, status int) *APIError {
