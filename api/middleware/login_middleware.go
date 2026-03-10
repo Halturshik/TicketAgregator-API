@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth"
+	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/httpx"
 )
 
@@ -30,7 +30,7 @@ func Auth(next http.Handler) http.Handler {
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-		userID, err := auth.ParseToken(tokenStr)
+		userID, err := authutils.ParseToken(tokenStr)
 		if err != nil {
 			_ = httpx.WriteJSON(w, apierror.ErrInvalidToken.Status, apierror.ErrInvalidToken)
 			return

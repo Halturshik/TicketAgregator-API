@@ -6,13 +6,13 @@ import (
 	"net/http"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
 	"github.com/Halturshik/TicketAgregator-API/internal/httpx"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 )
 
 func (api *API) LoginStartHandler(w http.ResponseWriter, r *http.Request) error {
-	var req auth.LoginStartInput
+	var req types.LoginStartInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn("Ошибка: не удалось прочитать тело запроса: %v", err)
@@ -28,7 +28,7 @@ func (api *API) LoginStartHandler(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (api *API) LoginConfirmHandler(w http.ResponseWriter, r *http.Request) error {
-	var req auth.LoginConfirmInput
+	var req types.LoginConfirmInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn("Ошибка: не удалось прочитать тело запроса: %v", err)

@@ -1,36 +1,24 @@
-package auth
+package redis
 
 import (
 	"context"
-	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
+	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 	"github.com/redis/go-redis/v9"
 )
 
-const (
-	emailVerify             = "email_verify:"
-	emailVerifyAttempts     = "email_verify_attempts:"
-	codeRequestRateLimit    = "code_request_rate_limit:"
-	codeCooldownAfterFailed = "code_cooldown_after_failed:"
-
-	maxVerifyAttempts   = 5
-	verifyCodeTTL       = 5 * time.Minute
-	codeRateLimitWindow = 2 * time.Minute
-	cooldownAfterFailed = 5 * time.Minute
-)
-
-type CodeService struct {
+type CodeStore struct {
 	redis *redis.Client
 }
 
-func NewCodeService(redis *redis.Client) *CodeService {
-	return &CodeService{redis: redis}
+func NewCodeService(redis *redis.Client) *CodeStore {
+	return &CodeStore{redis: redis}
 }
 
-func (c *CodeService) Generate(ctx context.Context, email string) (string, error) {
-	rateKey := codeRequestRateLimit + email
+func (c *CodeStore) Generate(ctx context.Context, email string) (string, error) {
+	rateKey := RateLimitKey(email)
 	if cnt, err := c.redis.Exists(ctx, rateKey).Result(); err != nil {
 		return "", err
 	} else if cnt == 1 {
@@ -38,7 +26,7 @@ func (c *CodeService) Generate(ctx context.Context, email string) (string, error
 		return "", apierror.ErrCodeRateLimited
 	}
 
-	cooldownKey := codeCooldownAfterFailed + email
+	cooldownKey := CooldownKey(email)
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
 		return "", err
 	} else if cnt == 1 {
@@ -46,23 +34,22 @@ func (c *CodeService) Generate(ctx context.Context, email string) (string, error
 		return "", apierror.ErrTooManyAttempts
 	}
 
-	codeKey := emailVerify + email
-	attemptsKey := emailVerifyAttempts + email
+	codeKey := CodeKey(email)
+	attemptsKey := AttemptsKey(email)
 
-	c.redis.Del(ctx, codeKey)
-	c.redis.Del(ctx, attemptsKey)
+	c.redis.Del(ctx, codeKey, attemptsKey)
 
-	code, err := GenerateVerificationCode()
+	code, err := authutils.GenerateVerificationCode()
 	if err != nil {
 		logger.Error("Ошибка при генерации кода для %s: %v", email, err)
 		return "", err
 	}
 
-	if err := c.redis.Set(ctx, codeKey, code, verifyCodeTTL).Err(); err != nil {
+	if err := c.redis.Set(ctx, codeKey, code, VerifyCodeTTL).Err(); err != nil {
 		return "", err
 	}
 
-	if err := c.redis.Set(ctx, rateKey, "1", codeRateLimitWindow).Err(); err != nil {
+	if err := c.redis.Set(ctx, rateKey, "1", CodeRateLimitWindow).Err(); err != nil {
 		return "", err
 	}
 
@@ -70,10 +57,10 @@ func (c *CodeService) Generate(ctx context.Context, email string) (string, error
 	return code, nil
 }
 
-func (c *CodeService) Verify(ctx context.Context, email, code string) error {
-	attemptsKey := emailVerifyAttempts + email
-	cooldownKey := codeCooldownAfterFailed + email
-	codeKey := emailVerify + email
+func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
+	attemptsKey := AttemptsKey(email)
+	cooldownKey := CooldownKey(email)
+	codeKey := CodeKey(email)
 
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
 		return err
@@ -98,14 +85,14 @@ func (c *CodeService) Verify(ctx context.Context, email, code string) error {
 		}
 
 		if attempts == 1 {
-			if err := c.redis.Expire(ctx, attemptsKey, verifyCodeTTL).Err(); err != nil {
+			if err := c.redis.Expire(ctx, attemptsKey, VerifyCodeTTL).Err(); err != nil {
 				return err
 			}
 		}
 
-		if attempts >= maxVerifyAttempts {
+		if attempts >= MaxVerifyAttempts {
 			logger.Warn("Превышен лимит попыток ввода кода для %s (попыток: %d)", email, attempts)
-			if err := c.redis.Set(ctx, cooldownKey, "1", cooldownAfterFailed).Err(); err != nil {
+			if err := c.redis.Set(ctx, cooldownKey, "1", CooldownAfterFailed).Err(); err != nil {
 				return err
 			}
 			c.redis.Del(ctx, codeKey)
@@ -114,7 +101,7 @@ func (c *CodeService) Verify(ctx context.Context, email, code string) error {
 			return apierror.ErrTooManyAttempts
 		}
 
-		logger.Warn("Неверный код подтверждения для %s (попытка %d/%d)", email, attempts, maxVerifyAttempts)
+		logger.Warn("Неверный код подтверждения для %s (попытка %d/%d)", email, attempts, MaxVerifyAttempts)
 		return apierror.ErrInvalidVerificationCode
 	}
 
@@ -122,9 +109,9 @@ func (c *CodeService) Verify(ctx context.Context, email, code string) error {
 	return nil
 }
 
-func (c *CodeService) Clear(ctx context.Context, email string) error {
-	codeKey := emailVerify + email
-	attemptsKey := emailVerifyAttempts + email
+func (c *CodeStore) Clear(ctx context.Context, email string) error {
+	codeKey := CodeKey(email)
+	attemptsKey := AttemptsKey(email)
 
 	if err := c.redis.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
 		return err

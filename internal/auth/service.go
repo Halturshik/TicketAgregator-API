@@ -6,38 +6,39 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/database/errs"
 	"github.com/Halturshik/TicketAgregator-API/database/model"
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
+	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
+	"github.com/Halturshik/TicketAgregator-API/internal/interfaces"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
+
+	internalRedis "github.com/Halturshik/TicketAgregator-API/internal/redis"
+	redisClient "github.com/redis/go-redis/v9"
 )
 
 type Service struct {
-	store       UserStore
-	mailer      Mailer
-	codeService *CodeService
+	store             interfaces.UserStore
+	codeStore         interfaces.CodeStore
+	codeSender        *authutils.CodeSender
+	registrationStore interfaces.RegistrationStore
+	loginStore        interfaces.LoginStore
 }
 
-func NewService(store UserStore, mailer Mailer, redisClient *redis.Client) *Service {
+func NewService(store interfaces.UserStore, mailer interfaces.Mailer, registrationStore interfaces.RegistrationStore, loginStore interfaces.LoginStore, client *redisClient.Client) *Service {
+	codeStore := internalRedis.NewCodeService(client)
+	codeSender := authutils.NewCodeSender(codeStore, mailer)
 	return &Service{
-		store:       store,
-		mailer:      mailer,
-		codeService: NewCodeService(redisClient),
+		store:             store,
+		codeSender:        codeSender,
+		codeStore:         codeStore,
+		registrationStore: registrationStore,
+		loginStore:        loginStore,
 	}
 }
 
-type RegisterInput struct {
-	FirstName  string `json:"first_name"`
-	MiddleName string `json:"middle_name,omitempty"`
-	LastName   string `json:"last_name"`
-	BirthDate  string `json:"birth_date"`
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	IsRussian  bool   `json:"is_russian"`
-}
-
-func (s *Service) StartRegistration(ctx context.Context, in RegisterInput) error {
+func (s *Service) StartRegistration(ctx context.Context, in types.RegisterInput) error {
 	in.FirstName = cleaning.Name(in.FirstName)
 	in.MiddleName = cleaning.Name(in.MiddleName)
 	in.LastName = cleaning.Name(in.LastName)
@@ -84,45 +85,47 @@ func (s *Service) StartRegistration(ctx context.Context, in RegisterInput) error
 		return apierror.ErrEmailIsUsed
 	}
 
-	code, err := s.codeService.Generate(ctx, in.Email)
+	err = s.registrationStore.Save(ctx, in.Email, in)
 	if err != nil {
-		logger.Warn("Ошибка при генерации кода для %s: %v", in.Email, err)
 		return err
 	}
 
-	if err := s.mailer.SendVerificationEmail(in.Email, code); err != nil {
-		logger.Warn("Ошибка при отправке письма для %s: %v", in.Email, err)
+	if err := s.codeSender.Send(ctx, in.Email); err != nil {
 		return err
 	}
 
-	logger.Info("Код подтверждения отправлен на %s", in.Email)
 	return nil
 }
 
-// нужно обсудить с Ксюшей, сможет ли она хранить и повторно присылать данные с кодом, а то они сейчас теряются
-func (s *Service) ConfirmRegistration(ctx context.Context, in RegisterInput, code string) error {
+func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegisterInput) error {
 	in.Email = cleaning.Email(in.Email)
 
-	if err := s.codeService.Verify(ctx, in.Email, code); err != nil {
+	if err := s.codeStore.Verify(ctx, in.Email, in.Code); err != nil {
 		return err
 	}
 
-	birthDate, _ := validator.ValidBirthDate(in.BirthDate)
+	stored, err := s.registrationStore.Get(ctx, in.Email)
+	if err != nil {
+		logger.Error("Ошибка при получении регистрационных данных из временного хранилища %s: %v", in.Email, err)
+		return err
+	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	birthDate, _ := validator.ValidBirthDate(stored.BirthDate)
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(stored.Password), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return err
 	}
 
 	dbParams := model.CreateUserParams{
-		FirstName:    in.FirstName,
-		MiddleName:   in.MiddleName,
-		LastName:     in.LastName,
+		FirstName:    stored.FirstName,
+		MiddleName:   stored.MiddleName,
+		LastName:     stored.LastName,
 		BirthDate:    birthDate,
-		Email:        in.Email,
+		Email:        stored.Email,
 		PasswordHash: string(hash),
-		IsRussian:    in.IsRussian,
+		IsRussian:    stored.IsRussian,
 	}
 
 	_, err = s.store.CreateUser(ctx, dbParams)
@@ -134,11 +137,15 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in RegisterInput, cod
 		return err
 	}
 
-	if err := s.codeService.Clear(ctx, in.Email); err != nil {
+	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
 		logger.Warn("Ошибка при инвалидации кода после регистрации %s: %v", in.Email, err)
 		return err
 	}
 
+	if err := s.registrationStore.Delete(ctx, in.Email); err != nil {
+		logger.Warn("Ошибка при очистке регистрационных данных из временного хранилища %s: %v", in.Email, err)
+		return err
+	}
 	logger.Info("Успешная регистрация пользователя: %s", in.Email)
 	return nil
 }

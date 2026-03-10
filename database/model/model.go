@@ -13,7 +13,7 @@ type CreateUserParams struct {
 }
 
 type User struct {
-	ID           int
+	ID           int64
 	FirstName    string
 	MiddleName   string
 	LastName     string

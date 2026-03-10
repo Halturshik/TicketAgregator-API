@@ -7,26 +7,14 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/database/errs"
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
+	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type LoginStartInput struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type LoginConfirmInput struct {
-	Email string `json:"email"`
-	Code  string `json:"code"`
-}
-
-type LoginOutput struct {
-	Token string `json:"token"`
-}
-
-func (s *Service) LoginStart(ctx context.Context, in LoginStartInput) error {
+func (s *Service) LoginStart(ctx context.Context, in types.LoginStartInput) error {
 	in.Email = cleaning.Email(in.Email)
 	in.Password = cleaning.Password(in.Password)
 
@@ -59,32 +47,43 @@ func (s *Service) LoginStart(ctx context.Context, in LoginStartInput) error {
 		return apierror.ErrInvalidCredentials
 	}
 
-	code, err := s.codeService.Generate(ctx, in.Email)
-	if err != nil {
+	if err := s.loginStore.Save(ctx, in.Email, user.ID); err != nil {
 		return err
 	}
 
-	return s.mailer.SendVerificationEmail(in.Email, code)
+	if err := s.codeSender.Send(ctx, in.Email); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (s *Service) LoginConfirm(ctx context.Context, in LoginConfirmInput) (*LoginOutput, error) {
+func (s *Service) LoginConfirm(ctx context.Context, in types.LoginConfirmInput) (*types.LoginOutput, error) {
 	in.Email = cleaning.Email(in.Email)
 
-	if err := s.codeService.Verify(ctx, in.Email, in.Code); err != nil {
+	if err := s.codeStore.Verify(ctx, in.Email, in.Code); err != nil {
 		return nil, err
 	}
 
-	user, err := s.store.GetUserByEmail(ctx, in.Email)
+	userID, err := s.loginStore.Get(ctx, in.Email)
 	if err != nil {
 		return nil, err
 	}
 
-	token, err := GenerateToken(user.ID, 30*time.Minute)
+	token, err := authutils.GenerateToken(int(userID), 30*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 
-	return &LoginOutput{
+	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
+		return nil, err
+	}
+
+	if err := s.loginStore.Delete(ctx, in.Email); err != nil {
+		return nil, err
+	}
+
+	return &types.LoginOutput{
 		Token: token,
 	}, nil
 }
