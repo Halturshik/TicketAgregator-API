@@ -7,4 +7,5 @@ const (
 	KeyAuthAttempts     = "auth:attempts:"
 	KeyAuthRateLimit    = "auth:rate:"
 	KeyAuthCooldown     = "auth:cooldown:"
+	KeyAuthRefresh      = "auth:refresh:"
 )

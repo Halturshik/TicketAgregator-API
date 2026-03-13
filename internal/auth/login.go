@@ -3,15 +3,14 @@ package auth
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/database/errs"
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
 	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
+	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func (s *Service) LoginStart(ctx context.Context, in types.LoginStartInput) error {
@@ -37,13 +36,11 @@ func (s *Service) LoginStart(ctx context.Context, in types.LoginStartInput) erro
 		if errors.Is(err, errs.ErrUserNotFound) {
 			return apierror.ErrInvalidCredentials
 		}
+		logger.Error("Ошибка при получении пользователя по email %s: %v", in.Email, err)
 		return err
 	}
 
-	if bcrypt.CompareHashAndPassword(
-		[]byte(user.PasswordHash),
-		[]byte(in.Password),
-	) != nil {
+	if err := authutils.CheckPassword(user.PasswordHash, in.Password); err != nil {
 		return apierror.ErrInvalidCredentials
 	}
 
@@ -70,8 +67,21 @@ func (s *Service) LoginConfirm(ctx context.Context, in types.LoginConfirmInput) 
 		return nil, err
 	}
 
-	token, err := authutils.GenerateToken(int(userID), 30*time.Minute)
+	accessToken, err := authutils.GenerateToken(int(userID), authutils.AccessTokenTTL)
 	if err != nil {
+		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
+		return nil, err
+	}
+	logger.Info("Сгенерирован access-токена для userID %v", userID)
+
+	refreshToken, err := authutils.GenerateToken(int(userID), authutils.RefreshTokenTTL)
+	if err != nil {
+		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
+		return nil, err
+	}
+	logger.Info("Сгенерирован refresh-токен для userID %v", userID)
+
+	if err := s.refreshStore.Save(ctx, userID, refreshToken); err != nil {
 		return nil, err
 	}
 
@@ -84,6 +94,7 @@ func (s *Service) LoginConfirm(ctx context.Context, in types.LoginConfirmInput) 
 	}
 
 	return &types.LoginOutput{
-		Token: token,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
 }

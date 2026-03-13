@@ -11,10 +11,9 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/interfaces"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
+	"github.com/Halturshik/TicketAgregator-API/internal/redis"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
-	"golang.org/x/crypto/bcrypt"
 
-	internalRedis "github.com/Halturshik/TicketAgregator-API/internal/redis"
 	redisClient "github.com/redis/go-redis/v9"
 )
 
@@ -24,17 +23,22 @@ type Service struct {
 	codeSender        *authutils.CodeSender
 	registrationStore interfaces.RegistrationStore
 	loginStore        interfaces.LoginStore
+	refreshStore      interfaces.RefreshStore
 }
 
-func NewService(store interfaces.UserStore, mailer interfaces.Mailer, registrationStore interfaces.RegistrationStore, loginStore interfaces.LoginStore, client *redisClient.Client) *Service {
-	codeStore := internalRedis.NewCodeService(client)
+func NewService(store interfaces.UserStore, mailer interfaces.Mailer, client *redisClient.Client) *Service {
+	codeStore := redis.NewCodeService(client)
 	codeSender := authutils.NewCodeSender(codeStore, mailer)
+	registrationStore := redis.NewRegistrationStore(client)
+	loginStore := redis.NewLoginStore(client)
+	refreshStore := redis.NewRefreshStore(client)
 	return &Service{
 		store:             store,
 		codeSender:        codeSender,
 		codeStore:         codeStore,
 		registrationStore: registrationStore,
 		loginStore:        loginStore,
+		refreshStore:      refreshStore,
 	}
 }
 
@@ -97,25 +101,24 @@ func (s *Service) StartRegistration(ctx context.Context, in types.RegisterInput)
 	return nil
 }
 
-func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegisterInput) error {
+func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegisterInput) (*types.LoginOutput, error) {
 	in.Email = cleaning.Email(in.Email)
 
 	if err := s.codeStore.Verify(ctx, in.Email, in.Code); err != nil {
-		return err
+		return nil, err
 	}
 
 	stored, err := s.registrationStore.Get(ctx, in.Email)
 	if err != nil {
-		logger.Error("Ошибка при получении регистрационных данных из временного хранилища %s: %v", in.Email, err)
-		return err
+		return nil, err
 	}
 
 	birthDate, _ := validator.ValidBirthDate(stored.BirthDate)
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(stored.Password), bcrypt.DefaultCost)
+	hash, err := authutils.HashPassword(stored.Password)
 	if err != nil {
 		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
-		return err
+		return nil, err
 	}
 
 	dbParams := model.CreateUserParams{
@@ -124,28 +127,47 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegis
 		LastName:     stored.LastName,
 		BirthDate:    birthDate,
 		Email:        stored.Email,
-		PasswordHash: string(hash),
+		PasswordHash: hash,
 		IsRussian:    stored.IsRussian,
 	}
 
-	_, err = s.store.CreateUser(ctx, dbParams)
+	userID, err := s.store.CreateUser(ctx, dbParams)
 	if err != nil {
 		if err == errs.ErrDuplicateEmail {
-			return apierror.ErrEmailIsUsed
+			return nil, apierror.ErrEmailIsUsed
 		}
 		logger.Error("Ошибка при создании пользователя %s: %v", in.Email, err)
-		return err
+		return nil, err
+	}
+
+	accessToken, err := authutils.GenerateToken(int(userID), authutils.AccessTokenTTL)
+	if err != nil {
+		logger.Error("Ошибка генерации access токена: %v", err)
+		return nil, err
+	}
+
+	refreshToken, err := authutils.GenerateToken(int(userID), authutils.RefreshTokenTTL)
+	if err != nil {
+		logger.Error("Ошибка генерации refresh токена: %v", err)
+		return nil, err
+	}
+
+	if err := s.refreshStore.Save(ctx, userID, refreshToken); err != nil {
+		return nil, err
 	}
 
 	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
 		logger.Warn("Ошибка при инвалидации кода после регистрации %s: %v", in.Email, err)
-		return err
+		return nil, err
 	}
 
 	if err := s.registrationStore.Delete(ctx, in.Email); err != nil {
 		logger.Warn("Ошибка при очистке регистрационных данных из временного хранилища %s: %v", in.Email, err)
-		return err
+		return nil, err
 	}
-	logger.Info("Успешная регистрация пользователя: %s", in.Email)
-	return nil
+
+	return &types.LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }

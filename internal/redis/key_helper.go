@@ -23,3 +23,7 @@ func RateLimitKey(email string) string {
 func CooldownKey(email string) string {
 	return KeyAuthCooldown + email
 }
+
+func RefreshKey(token string) string {
+	return KeyAuthRefresh + token
+}

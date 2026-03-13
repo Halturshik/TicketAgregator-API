@@ -3,7 +3,6 @@ package redis
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
@@ -12,13 +11,11 @@ import (
 
 type RegistrationStore struct {
 	redis *redis.Client
-	ttl   time.Duration
 }
 
-func NewRegistrationStore(redis *redis.Client, ttl time.Duration) *RegistrationStore {
+func NewRegistrationStore(redis *redis.Client) *RegistrationStore {
 	return &RegistrationStore{
 		redis: redis,
-		ttl:   RegistrationTTL,
 	}
 }
 
@@ -33,12 +30,12 @@ func (s *RegistrationStore) Save(ctx context.Context, email string, data types.R
 		return err
 	}
 
-	if err := s.redis.Set(ctx, s.key(email), bytes, s.ttl).Err(); err != nil {
+	if err := s.redis.Set(ctx, s.key(email), bytes, RegistrationTTL).Err(); err != nil {
 		logger.Error("Ошибка при сохранении в redis регистрационных данных для %s: %v", email, err)
 		return err
 	}
 
-	logger.Info("Регистрационные данные сохранены в redis для %s (TTL: %v)", email, s.ttl)
+	logger.Info("Регистрационные данные сохранены в redis для %s (TTL: %v)", email, RegistrationTTL)
 	return nil
 }
 

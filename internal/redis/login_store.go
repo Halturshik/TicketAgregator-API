@@ -3,7 +3,6 @@ package redis
 import (
 	"context"
 	"strconv"
-	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 	"github.com/redis/go-redis/v9"
@@ -11,13 +10,11 @@ import (
 
 type LoginStore struct {
 	redis *redis.Client
-	ttl   time.Duration
 }
 
-func NewLoginStore(redis *redis.Client, ttl time.Duration) *LoginStore {
+func NewLoginStore(redis *redis.Client) *LoginStore {
 	return &LoginStore{
 		redis: redis,
-		ttl:   LoginTTL,
 	}
 }
 
@@ -26,12 +23,12 @@ func (s *LoginStore) key(email string) string {
 }
 
 func (s *LoginStore) Save(ctx context.Context, email string, userID int64) error {
-	if err := s.redis.Set(ctx, s.key(email), userID, s.ttl).Err(); err != nil {
+	if err := s.redis.Set(ctx, s.key(email), userID, LoginTTL).Err(); err != nil {
 		logger.Error("Ошибка при сохранении в redis авторизационных данных для %s: %v", email, err)
 		return err
 	}
 
-	logger.Info("Авторизационные данные сохранены в redis для %s (TTL: %v)", email, s.ttl)
+	logger.Info("Авторизационные данные сохранены в redis для %s (TTL: %v)", email, LoginTTL)
 	return nil
 }
 

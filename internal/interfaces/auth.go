@@ -34,3 +34,9 @@ type CodeStore interface {
 	Verify(ctx context.Context, email, code string) error
 	Clear(ctx context.Context, email string) error
 }
+
+type RefreshStore interface {
+	Save(ctx context.Context, userID int64, token string) error
+	Get(ctx context.Context, token string) (int64, error)
+	Delete(ctx context.Context, token string) error
+}

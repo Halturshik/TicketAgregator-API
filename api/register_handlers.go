@@ -33,11 +33,16 @@ func (api *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Reques
 		return apierror.ErrInvalidJSON
 	}
 
-	if err := api.AuthService.ConfirmRegistration(r.Context(), req); err != nil {
-		logger.Warn("Ошибка при регистрации: %v", err)
+	tokens, err := api.AuthService.ConfirmRegistration(r.Context(), req)
+	if err != nil {
+		logger.Warn("Ошибка при регистрации для email: %v: %v", req.Email, err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
 	logger.Info("Успешная регистрация для email: %s", req.Email)
-	return httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": fmt.Sprintf("Вы успешно прошли регистрацию. Хороших поездок!")})
+	return httpx.WriteJSON(w, http.StatusCreated, map[string]any{
+		"message":       "Вы успешно прошли регистрацию. Хороших поездок!",
+		"access_token":  tokens.AccessToken,
+		"refresh_token": tokens.RefreshToken,
+	})
 }

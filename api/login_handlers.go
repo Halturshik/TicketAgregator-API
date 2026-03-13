@@ -20,7 +20,7 @@ func (api *API) LoginStartHandler(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	if err := api.AuthService.LoginStart(r.Context(), req); err != nil {
-		logger.Warn("Ошибка при старте авторизации: %v", err)
+		logger.Warn("Ошибка при старте авторизации для email: %v : %v", req.Email, err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
@@ -37,7 +37,7 @@ func (api *API) LoginConfirmHandler(w http.ResponseWriter, r *http.Request) erro
 
 	out, err := api.AuthService.LoginConfirm(r.Context(), req)
 	if err != nil {
-		logger.Warn("Ошибка при подтверждении авторизации: %v", err)
+		logger.Warn("Ошибка при подтверждении авторизации для email: %v : %v", req.Email, err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
