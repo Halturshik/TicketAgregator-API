@@ -13,3 +13,7 @@ func Email(s string) string {
 func Password(s string) string {
 	return strings.TrimSpace(s)
 }
+
+func Token(s string) string {
+	return strings.TrimSpace(s)
+}

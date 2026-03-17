@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 
+	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,7 @@ func (s *RefreshStore) Save(ctx context.Context, userID int64, token string) err
 	hash := authutils.HashToken(token)
 	key := RefreshKey(hash)
 	if err := s.redis.Set(ctx, key, userID, authutils.RefreshTokenTTL).Err(); err != nil {
-		logger.Error("Ошибка при сохранении в redis refresh-токена данных для userID: %v: %v", userID, err)
+		logger.Error("Ошибка при сохранении в redis refresh-токена для userID: %v: %v", userID, err)
 		return err
 	}
 
@@ -32,6 +33,10 @@ func (s *RefreshStore) Get(ctx context.Context, token string) (int64, error) {
 	hash := authutils.HashToken(token)
 	key := RefreshKey(hash)
 	val, err := s.redis.Get(ctx, key).Int64()
+	if err == redis.Nil {
+		return 0, apierror.ErrInvalidToken
+	}
+
 	if err != nil {
 		return 0, err
 	}

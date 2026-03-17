@@ -35,12 +35,12 @@ func (api *API) LoginConfirmHandler(w http.ResponseWriter, r *http.Request) erro
 		return apierror.ErrInvalidJSON
 	}
 
-	out, err := api.AuthService.LoginConfirm(r.Context(), req)
+	tokens, err := api.AuthService.LoginConfirm(r.Context(), req)
 	if err != nil {
 		logger.Warn("Ошибка при подтверждении авторизации для email: %v : %v", req.Email, err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
 	logger.Info("Успешная авторизация для email: %s", req.Email)
-	return httpx.WriteJSON(w, http.StatusOK, out)
+	return httpx.WriteJSON(w, http.StatusOK, tokens)
 }

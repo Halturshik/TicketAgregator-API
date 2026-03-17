@@ -18,22 +18,24 @@ func (e *APIError) Error() string {
 }
 
 const (
-	FieldFirstName  = "first_name"
-	FieldMiddleName = "middle_name"
-	FieldLastName   = "last_name"
-	FieldEmail      = "email"
-	FieldPassword   = "password"
-	FieldBirthDate  = "birth_date"
-	FieldCode       = "code"
+	FieldFirstName    = "first_name"
+	FieldMiddleName   = "middle_name"
+	FieldLastName     = "last_name"
+	FieldEmail        = "email"
+	FieldPassword     = "password"
+	FieldBirthDate    = "birth_date"
+	FieldCode         = "code"
+	FieldRefreshToken = "refresh_token"
 )
 
 const (
-	ErrInvalidFirstName  = "Некорректно указано имя"
-	ErrInvalidMiddleName = "Некорректно указано отчество"
-	ErrInvalidLastName   = "Некорректно указана фамилия"
-	ErrInvalidEmail      = "Некорректный адрес электронной почты"
-	ErrInvalidBirthDate  = "Некорректная дата рождения. Регистрация доступна для лиц, достигших 14 лет"
-	ErrInvalidPassword   = "Пароль должен состоять из 8 и более символов и содержать как минимум одну латинскую букву и одну цифру"
+	ErrInvalidFirstName    = "Некорректно указано имя"
+	ErrInvalidMiddleName   = "Некорректно указано отчество"
+	ErrInvalidLastName     = "Некорректно указана фамилия"
+	ErrInvalidEmail        = "Некорректный адрес электронной почты"
+	ErrInvalidBirthDate    = "Некорректная дата рождения. Регистрация доступна для лиц, достигших 14 лет"
+	ErrInvalidPassword     = "Пароль должен состоять из 8 и более символов и содержать как минимум одну латинскую букву и одну цифру"
+	ErrInvalidRefreshToken = "Не указан refresh-токен"
 )
 
 var (

@@ -6,24 +6,42 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
 	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
+	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
+	"github.com/Halturshik/TicketAgregator-API/internal/validator"
 )
 
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*types.LoginOutput, error) {
+	refreshToken = cleaning.Token(refreshToken)
+
+	fields := map[string]string{}
+
+	if !validator.NotEmpty(refreshToken) {
+		fields[apierror.FieldRefreshToken] = apierror.ErrInvalidRefreshToken
+	}
+	if len(fields) > 0 {
+		return nil, apierror.Validation(fields)
+	}
 
 	userIDFromJWT, err := authutils.ParseToken(refreshToken)
 	if err != nil {
+		logger.Warn("Невалидный refresh-токен при попытке обновления: %v", err)
 		return nil, apierror.ErrInvalidToken
 	}
 
 	userID, err := s.refreshStore.Get(ctx, refreshToken)
 	if err != nil {
-		logger.Error("Ошибка при получения refresh-токена из redis для userID %v: %v", userID, err)
-		return nil, apierror.ErrInvalidToken
+		if err == apierror.ErrInvalidToken {
+			logger.Warn("Попытка использовать отсутствующий/истёкший refresh-токен (userID из JWT: %d)", userIDFromJWT)
+			return nil, apierror.ErrInvalidToken
+		}
+
+		logger.Error("Ошибка при получения refresh-токена из redis (userID из JWT: %d): %v", userIDFromJWT, err)
+		return nil, apierror.ErrInternal
 	}
 
 	if int64(userIDFromJWT) != userID {
-		logger.Warn("Несоответствие userID в refresh токене")
+		logger.Warn("Несоответствие userID: в JWT %d, в Redis %d", userIDFromJWT, userID)
 		return nil, apierror.ErrInvalidToken
 	}
 
