@@ -8,13 +8,22 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/httpx"
+	"github.com/Halturshik/TicketAgregator-API/internal/interfaces"
 )
 
 type contextKey struct{}
 
 var userIDKey = contextKey{}
 
-func Auth(next http.Handler) http.Handler {
+type AuthMiddleware struct {
+	store interfaces.UserStore
+}
+
+func NewAuthMiddleware(store interfaces.UserStore) *AuthMiddleware {
+	return &AuthMiddleware{store: store}
+}
+
+func (m *AuthMiddleware) Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		authHeader := r.Header.Get("Authorization")
@@ -30,8 +39,19 @@ func Auth(next http.Handler) http.Handler {
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-		userID, err := authutils.ParseToken(tokenStr)
+		userID, tokenVersion, err := authutils.ParseToken(tokenStr)
 		if err != nil {
+			_ = httpx.WriteJSON(w, apierror.ErrInvalidToken.Status, apierror.ErrInvalidToken)
+			return
+		}
+
+		user, err := m.store.GetUserByID(r.Context(), userID)
+		if err != nil {
+			_ = httpx.WriteJSON(w, apierror.ErrUnauthorized.Status, apierror.ErrUnauthorized)
+			return
+		}
+
+		if user.TokenVersion != tokenVersion {
 			_ = httpx.WriteJSON(w, apierror.ErrInvalidToken.Status, apierror.ErrInvalidToken)
 			return
 		}

@@ -1,5 +1,7 @@
 package redis
 
+import "fmt"
+
 func RegistrationKey(email string) string {
 	return KeyAuthRegistration + email
 }
@@ -26,4 +28,12 @@ func CooldownKey(email string) string {
 
 func RefreshKey(token string) string {
 	return KeyAuthRefresh + token
+}
+
+func ResetVerifiedKey(email string) string {
+	return KeyAuthResetVerified + email
+}
+
+func RefreshUserSetKey(userID int64) string {
+	return fmt.Sprintf("%suser:%d", KeyAuthRefresh, userID)
 }

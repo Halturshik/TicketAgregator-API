@@ -9,38 +9,9 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/types"
 	"github.com/Halturshik/TicketAgregator-API/internal/authutils"
 	"github.com/Halturshik/TicketAgregator-API/internal/cleaning"
-	"github.com/Halturshik/TicketAgregator-API/internal/interfaces"
 	"github.com/Halturshik/TicketAgregator-API/internal/logger"
-	"github.com/Halturshik/TicketAgregator-API/internal/redis"
 	"github.com/Halturshik/TicketAgregator-API/internal/validator"
-
-	redisClient "github.com/redis/go-redis/v9"
 )
-
-type Service struct {
-	store             interfaces.UserStore
-	codeStore         interfaces.CodeStore
-	codeSender        *authutils.CodeSender
-	registrationStore interfaces.RegistrationStore
-	loginStore        interfaces.LoginStore
-	refreshStore      interfaces.RefreshStore
-}
-
-func NewService(store interfaces.UserStore, mailer interfaces.Mailer, client *redisClient.Client) *Service {
-	codeStore := redis.NewCodeService(client)
-	codeSender := authutils.NewCodeSender(codeStore, mailer)
-	registrationStore := redis.NewRegistrationStore(client)
-	loginStore := redis.NewLoginStore(client)
-	refreshStore := redis.NewRefreshStore(client)
-	return &Service{
-		store:             store,
-		codeSender:        codeSender,
-		codeStore:         codeStore,
-		registrationStore: registrationStore,
-		loginStore:        loginStore,
-		refreshStore:      refreshStore,
-	}
-}
 
 func (s *Service) StartRegistration(ctx context.Context, in types.RegisterInput) error {
 	in.FirstName = cleaning.Name(in.FirstName)
@@ -115,7 +86,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegis
 
 	birthDate, _ := validator.ValidBirthDate(stored.BirthDate)
 
-	hash, err := authutils.HashPassword(stored.Password)
+	hashPassword, err := authutils.HashPassword(stored.Password)
 	if err != nil {
 		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return nil, err
@@ -127,7 +98,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegis
 		LastName:     stored.LastName,
 		BirthDate:    birthDate,
 		Email:        stored.Email,
-		PasswordHash: hash,
+		PasswordHash: hashPassword,
 		IsRussian:    stored.IsRussian,
 	}
 
@@ -140,19 +111,25 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in types.ConfirmRegis
 		return nil, err
 	}
 
-	accessToken, err := authutils.GenerateToken(int(userID), authutils.AccessTokenTTL)
+	accessToken, err := authutils.GenerateAccessToken(int(userID), 1)
 	if err != nil {
-		logger.Error("Ошибка генерации access токена: %v", err)
+		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
 
-	refreshToken, err := authutils.GenerateToken(int(userID), authutils.RefreshTokenTTL)
+	refreshToken, err := authutils.GenerateRefreshToken(int(userID), 1)
 	if err != nil {
-		logger.Error("Ошибка генерации refresh токена: %v", err)
+		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
+
+	hashToken := authutils.HashToken(refreshToken)
 
 	if err := s.refreshStore.Save(ctx, userID, refreshToken); err != nil {
+		return nil, err
+	}
+
+	if err := s.refreshStore.AddToUserSet(ctx, userID, hashToken); err != nil {
 		return nil, err
 	}
 

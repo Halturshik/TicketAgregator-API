@@ -104,6 +104,12 @@ var (
 		Message: "Превышено количество запросов кода подтверждения. Попробуйте позже",
 		Status:  http.StatusTooManyRequests,
 	}
+
+	ErrSamePassword = &APIError{
+		Code:    "same_password",
+		Message: "Новый пароль не должен совпадать со старым",
+		Status:  http.StatusBadRequest,
+	}
 )
 
 func New(code, message string, status int) *APIError {

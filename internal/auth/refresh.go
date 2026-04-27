@@ -23,7 +23,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*types.Logi
 		return nil, apierror.Validation(fields)
 	}
 
-	userIDFromJWT, err := authutils.ParseToken(refreshToken)
+	userIDFromJWT, tokenVersion, err := authutils.ParseToken(refreshToken)
 	if err != nil {
 		logger.Warn("Невалидный refresh-токен при попытке обновления: %v", err)
 		return nil, apierror.ErrInvalidToken
@@ -45,26 +45,47 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*types.Logi
 		return nil, apierror.ErrInvalidToken
 	}
 
+	user, err := s.store.GetUserByID(ctx, userIDFromJWT)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.TokenVersion != tokenVersion {
+		logger.Warn("Несоответствие версии токена: в JWT %d, в DB %d", tokenVersion, user.TokenVersion)
+		return nil, apierror.ErrInvalidToken
+	}
+
 	if err := s.refreshStore.Delete(ctx, refreshToken); err != nil {
 		logger.Error("Ошибка при удалении refresh-токена из redis для userID %v: %v", userID, err)
 		return nil, err
 	}
 
-	accessToken, err := authutils.GenerateToken(int(userID), authutils.AccessTokenTTL)
+	oldHash := authutils.HashToken(refreshToken)
+
+	if err := s.refreshStore.RemoveFromUserSet(ctx, userID, oldHash); err != nil {
+	}
+
+	accessToken, err := authutils.GenerateAccessToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
 	logger.Info("Сгенерирован access-токена для userID %v", userID)
 
-	newRefreshToken, err := authutils.GenerateToken(int(userID), authutils.RefreshTokenTTL)
+	newRefreshToken, err := authutils.GenerateRefreshToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации нового refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
 	logger.Info("Сгенерирован новый refresh-токен для userID %v", userID)
 
+	hash := authutils.HashToken(newRefreshToken)
+
 	if err := s.refreshStore.Save(ctx, userID, newRefreshToken); err != nil {
+		return nil, err
+	}
+
+	if err := s.refreshStore.AddToUserSet(ctx, userID, hash); err != nil {
 		return nil, err
 	}
 

@@ -44,7 +44,7 @@ func (s *Service) LoginStart(ctx context.Context, in types.LoginStartInput) erro
 		return apierror.ErrInvalidCredentials
 	}
 
-	if err := s.loginStore.Save(ctx, in.Email, user.ID); err != nil {
+	if err := s.loginStore.Save(ctx, in.Email, int64(user.ID)); err != nil {
 		return err
 	}
 
@@ -67,21 +67,32 @@ func (s *Service) LoginConfirm(ctx context.Context, in types.LoginConfirmInput) 
 		return nil, err
 	}
 
-	accessToken, err := authutils.GenerateToken(int(userID), authutils.AccessTokenTTL)
+	user, err := s.store.GetUserByEmail(ctx, in.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	accessToken, err := authutils.GenerateAccessToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
 	logger.Info("Сгенерирован access-токена для userID %v", userID)
 
-	refreshToken, err := authutils.GenerateToken(int(userID), authutils.RefreshTokenTTL)
+	refreshToken, err := authutils.GenerateRefreshToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
 	logger.Info("Сгенерирован refresh-токен для userID %v", userID)
 
+	hash := authutils.HashToken(refreshToken)
+
 	if err := s.refreshStore.Save(ctx, userID, refreshToken); err != nil {
+		return nil, err
+	}
+
+	if err := s.refreshStore.AddToUserSet(ctx, userID, hash); err != nil {
 		return nil, err
 	}
 

@@ -9,21 +9,18 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/database/model"
 )
 
-func (s *Store) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
-	var u model.User
+func (s *Store) GetUserByID(ctx context.Context, id int) (*model.UserAuth, error) {
+	var u model.UserAuth
 
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, first_name, last_name, email, password_hash, is_russian, birth_date
-		 FROM users WHERE email = $1`,
-		email,
+		`SELECT id, email, password_hash, token_version
+		 FROM users WHERE id = $1`,
+		id,
 	).Scan(
 		&u.ID,
-		&u.FirstName,
-		&u.LastName,
 		&u.Email,
 		&u.PasswordHash,
-		&u.IsRussian,
-		&u.BirthDate,
+		&u.TokenVersion,
 	)
 
 	if err == sql.ErrNoRows {
@@ -31,7 +28,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (*model.User, 
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("get user by email: %w", err)
+		return nil, fmt.Errorf("get user by id: %w", err)
 	}
 
 	return &u, nil

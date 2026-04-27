@@ -11,15 +11,17 @@ import (
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 type Claims struct {
-	UserID int `json:"user_id"`
+	UserID  int `json:"user_id"`
+	Version int `json:"version"`
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(userID int, ttl time.Duration) (string, error) {
+func GenerateAccessToken(userID int, version int) (string, error) {
 	claims := &Claims{
-		UserID: userID,
+		UserID:  userID,
+		Version: version,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
@@ -28,18 +30,32 @@ func GenerateToken(userID int, ttl time.Duration) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
-func ParseToken(tokenStr string) (int, error) {
+func GenerateRefreshToken(userID int, version int) (string, error) {
+	claims := &Claims{
+		UserID:  userID,
+		Version: version,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(RefreshTokenTTL)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+func ParseToken(tokenStr string) (int, int, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return 0, errors.New("invalid token")
+		return 0, 0, errors.New("invalid token")
 	}
 
-	return claims.UserID, nil
+	return claims.UserID, claims.Version, nil
 }
