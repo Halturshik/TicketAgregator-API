@@ -90,7 +90,6 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 	}
 
 	return &auth.LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: newRefreshToken,
+		AccessToken: accessToken,
 	}, nil
 }

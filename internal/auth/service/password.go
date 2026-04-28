@@ -94,6 +94,10 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 		return nil, err
 	}
 
+	if err := token.CheckPassword(user.PasswordHash, in.Password); err == nil {
+		return nil, apierror.ErrSamePassword
+	}
+
 	hashPassword, err := token.HashPassword(in.Password)
 	if err != nil {
 		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
@@ -105,6 +109,8 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 		logger.Error("Ошибка при обновлении пароля в БД для %s: %v", in.Email, err)
 		return nil, err
 	}
+
+	logger.Info("Пароль изменён для user_id=%d", user.ID)
 
 	if err := s.refreshStore.DeleteAllForUser(ctx, int64(user.ID)); err != nil {
 	}
@@ -132,7 +138,6 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	}
 
 	return &auth.LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken: accessToken,
 	}, nil
 }

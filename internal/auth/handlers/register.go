@@ -11,21 +11,21 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
-func (api *API) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *API) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 	var req auth.RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn("Ошибка: не удалось прочитать тело запроса: %v", err)
 		return apierror.ErrInvalidJSON
 	}
 
-	if err := api.AuthService.StartRegistration(r.Context(), req); err != nil {
+	if err := h.AuthService.StartRegistration(r.Context(), req); err != nil {
 		logger.Warn("Ошибка при регистрации: %v", err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 	return httpx.WriteJSON(w, http.StatusOK, map[string]any{"message": fmt.Sprintf("Код подтверждения отправлен на адрес электронной почты: %s", req.Email)})
 }
 
-func (api *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Request) error {
 	var req auth.ConfirmRegisterInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -33,16 +33,17 @@ func (api *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Reques
 		return apierror.ErrInvalidJSON
 	}
 
-	tokens, err := api.AuthService.ConfirmRegistration(r.Context(), req)
+	tokens, err := h.AuthService.ConfirmRegistration(r.Context(), req)
 	if err != nil {
 		logger.Warn("Ошибка при регистрации для email: %v: %v", req.Email, err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
 	logger.Info("Успешная регистрация для email: %s", req.Email)
+
+	auth.SetRefreshToken(w, tokens.RefreshToken)
 	return httpx.WriteJSON(w, http.StatusCreated, map[string]any{
-		"message":       "Вы успешно прошли регистрацию. Хороших поездок!",
-		"access_token":  tokens.AccessToken,
-		"refresh_token": tokens.RefreshToken,
+		"message":      "Вы успешно прошли регистрацию. Хороших поездок!",
+		"access_token": tokens.AccessToken,
 	})
 }

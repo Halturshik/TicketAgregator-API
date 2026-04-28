@@ -105,7 +105,6 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 	}
 
 	return &auth.LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken: accessToken,
 	}, nil
 }

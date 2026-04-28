@@ -143,7 +143,6 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 	}
 
 	return &auth.LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken: accessToken,
 	}, nil
 }

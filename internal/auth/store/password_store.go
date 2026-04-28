@@ -23,7 +23,7 @@ func (s *ResetPasswordStore) key(email string) string {
 
 func (s *ResetPasswordStore) SaveVerified(ctx context.Context, email string) error {
 	if err := s.redis.Set(ctx, s.key(email), "true", ResetPasswordTTL).Err(); err != nil {
-		logger.Error("Ошибка при сохранении в redis подтверждение верификации для %s: %v", email, err)
+		logger.Error("Ошибка при сохранении в redis подтверждения верификации для %s: %v", email, err)
 		return err
 	}
 

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
@@ -10,19 +9,20 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
-func (api *API) Refresh(w http.ResponseWriter, r *http.Request) error {
-	var req auth.RefreshInput
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn("Ошибка: не удалось прочитать тело запроса: %v", err)
-		return apierror.ErrInvalidJSON
+func (h *API) Refresh(w http.ResponseWriter, r *http.Request) error {
+	refreshToken, err := auth.GetRefreshToken(r)
+	if err != nil {
+		logger.Warn("Ошибка: не удалось прочитать refresh-токен: %v", err)
+		return apierror.ErrUnauthorized
 	}
 
-	tokens, err := api.AuthService.Refresh(r.Context(), req.RefreshToken)
+	tokens, err := h.AuthService.Refresh(r.Context(), refreshToken)
 	if err != nil {
-		logger.Warn("Ошибка при обновлении refresh-токена: (поступивший токен: %v): %v", req.RefreshToken[:8], err)
+		logger.Warn("Ошибка при обновлении refresh-токена: (поступивший токен: %v): %v", refreshToken[:8], err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
-	return httpx.WriteJSON(w, http.StatusOK, tokens)
+	auth.SetRefreshToken(w, tokens.RefreshToken)
+
+	return httpx.WriteJSON(w, http.StatusOK, map[string]any{"access_token": tokens.AccessToken})
 }
