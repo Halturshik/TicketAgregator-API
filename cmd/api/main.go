@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/app"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/service"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
@@ -43,15 +45,16 @@ func main() {
 
 	infraStore := postgres.NewStore(dbConnection)
 	authRepo := repository.NewRepository(infraStore.DB)
-
 	mail := &mailer.ConsoleMailer{}
-	apiServer := app.NewAPI(authRepo, mail, redisClient)
+
+	authService := service.NewService(authRepo, mail, redisClient)
+	authHandler := handlers.New(authService)
+
+	apiServer := app.NewAPI(authHandler)
 
 	r := chi.NewRouter()
-
-	// r.Use(api.LoggingMiddleware)
-
 	apiServer.Init(r)
+	// r.Use(api.LoggingMiddleware)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.AppPort,

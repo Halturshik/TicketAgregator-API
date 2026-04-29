@@ -26,7 +26,8 @@ type LoginConfirmInput struct {
 }
 
 type LoginOutput struct {
-	AccessToken string `json:"access_token"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"-"`
 }
 
 type ChangePasswordStartInput struct {

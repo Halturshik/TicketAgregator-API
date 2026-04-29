@@ -17,7 +17,7 @@ type Service struct {
 	resetPasswordStore auth.ResetPasswordStore
 }
 
-func NewService(userStore auth.UserStore, mailer auth.Mailer, client *redisClient.Client) *Service {
+func NewService(userStore auth.UserStore, mailer auth.Mailer, client *redisClient.Client) auth.AuthService {
 	codeStore := store.NewCodeService(client)
 	codeSender := code.NewCodeSender(codeStore, mailer)
 	registrationStore := store.NewRegistrationStore(client)

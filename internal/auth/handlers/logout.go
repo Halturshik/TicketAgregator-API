@@ -8,7 +8,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
-func (h *API) LogoutHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) error {
 	refreshToken, _ := auth.GetRefreshToken(r)
 
 	if refreshToken != "" {

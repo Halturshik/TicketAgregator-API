@@ -9,7 +9,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
-func (h *API) Refresh(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) error {
 	refreshToken, err := auth.GetRefreshToken(r)
 	if err != nil {
 		logger.Warn("Ошибка: не удалось прочитать refresh-токен: %v", err)

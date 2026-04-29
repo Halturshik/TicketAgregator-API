@@ -11,7 +11,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
-func (h *API) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 	var req auth.RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn("Ошибка: не удалось прочитать тело запроса: %v", err)
@@ -19,13 +19,13 @@ func (h *API) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if err := h.AuthService.StartRegistration(r.Context(), req); err != nil {
-		logger.Warn("Ошибка при регистрации: %v", err)
+		logger.Warn("Ошибка при регистрации для email: %v: %v", req.Email, err)
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 	return httpx.WriteJSON(w, http.StatusOK, map[string]any{"message": fmt.Sprintf("Код подтверждения отправлен на адрес электронной почты: %s", req.Email)})
 }
 
-func (h *API) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Request) error {
 	var req auth.ConfirmRegisterInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

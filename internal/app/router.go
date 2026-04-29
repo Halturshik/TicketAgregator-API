@@ -1,34 +1,36 @@
 package app
 
 import (
-	"github.com/Halturshik/TicketAgregator-API/internal/auth"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
 	"github.com/go-chi/chi/v5"
-	"github.com/redis/go-redis/v9"
 )
 
-
 type API struct {
-	AuthService *auth.Service
+	AuthHandler *handlers.Handler
 }
 
-func NewAPI(store auth.UserStore, mailer auth.Mailer, redisClient *redis.Client) *API {
+func NewAPI(authHandler *handlers.Handler) *API {
 	return &API{
-		AuthService: auth.NewService(store, mailer, redisClient),
+		AuthHandler: authHandler,
 	}
 }
 
 func (api *API) Init(r *chi.Mux) {
-	r.Route("/subscriptions", func(r chi.Router) {
-		r.Post("/", api.)
-	})
+	h := api.AuthHandler
 
-	r.Route("/users/{user_id}/subscriptions", func(r chi.Router) {
-		r.Get("/", api.)
-		r.Get("/{service_name}", api.)
-		r.Put("/{service_name}", api.)
-		r.Delete("/{service_name}", api.)
-		r.Post("/{service_name}/total", api.)
+	r.Route("/api/auth", func(r chi.Router) {
+		r.Post("/register", api.Handle(h.RegisterHandler))
+		r.Post("/register/confirm", api.Handle(h.ConfirmRegistrationHandler))
 
+		r.Post("/login", api.Handle(h.LoginStartHandler))
+		r.Post("/login/confirm", api.Handle(h.LoginConfirmHandler))
+
+		r.Post("/refresh", api.Handle(h.Refresh))
+		r.Post("/logout", api.Handle(h.LogoutHandler))
+
+		r.Post("/password/forgot", api.Handle(h.ForgotPasswordHandler))
+		r.Post("/password/verify-code", api.Handle(h.VerifyResetCodeHandler))
+		r.Post("/password/reset", api.Handle(h.ResetPasswordHandler))
 	})
 
 	//r.Get("/swagger/*", httpSwagger.Handler())

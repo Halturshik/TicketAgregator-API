@@ -6,6 +6,21 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 )
 
+type AuthService interface {
+	StartRegistration(ctx context.Context, in RegisterInput) error
+	ConfirmRegistration(ctx context.Context, in ConfirmRegisterInput) (*LoginOutput, error)
+
+	LoginStart(ctx context.Context, in LoginStartInput) error
+	LoginConfirm(ctx context.Context, in LoginConfirmInput) (*LoginOutput, error)
+
+	Refresh(ctx context.Context, refreshToken string) (*LoginOutput, error)
+	Logout(ctx context.Context, refreshToken string) error
+
+	ForgotPassword(ctx context.Context, email string) error
+	VerifyResetCode(ctx context.Context, in PasswordVerifyInput) error
+	ResetPassword(ctx context.Context, in ChangePasswordConfirmInput) (*LoginOutput, error)
+}
+
 type UserStore interface {
 	IsEmailExists(ctx context.Context, email string) (bool, error)
 	CreateUser(ctx context.Context, u repository.CreateUserParams) (int64, error)

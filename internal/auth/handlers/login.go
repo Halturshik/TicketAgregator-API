@@ -11,7 +11,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
-func (h *API) LoginStartHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) LoginStartHandler(w http.ResponseWriter, r *http.Request) error {
 	var req auth.LoginStartInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -27,7 +27,7 @@ func (h *API) LoginStartHandler(w http.ResponseWriter, r *http.Request) error {
 	return httpx.WriteJSON(w, http.StatusOK, map[string]any{"message": fmt.Sprintf("Код подтверждения отправлен на адрес электронной почты: %s", req.Email)})
 }
 
-func (h *API) LoginConfirmHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) LoginConfirmHandler(w http.ResponseWriter, r *http.Request) error {
 	var req auth.LoginConfirmInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
