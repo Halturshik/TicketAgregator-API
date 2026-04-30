@@ -23,7 +23,7 @@ func NewCodeSender(codeStore auth.CodeStore, mailer auth.Mailer) *CodeSender {
 func (cs *CodeSender) Send(ctx context.Context, email string) error {
 	code, err := cs.codeStore.Generate(ctx, email)
 	if err != nil {
-		logger.Error("Ошибка при генерации кода для %s: %v", email, err)
+		logger.Warn("Ошибка при генерации кода для %s: %v", email, err)
 		return err
 	}
 
@@ -32,6 +32,5 @@ func (cs *CodeSender) Send(ctx context.Context, email string) error {
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 
-	logger.Info("Код подтверждения отправлен на %s", email)
 	return nil
 }

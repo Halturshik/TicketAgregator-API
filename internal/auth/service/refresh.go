@@ -23,7 +23,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 		return nil, apierror.Validation(fields)
 	}
 
-	userIDFromJWT, tokenVersion, err := token.ParseToken(refreshToken)
+	userIDFromJWT, tokenVersion, err := s.jwt.ParseToken(refreshToken)
 	if err != nil {
 		logger.Warn("Невалидный refresh-токен при попытке обновления: %v", err)
 		return nil, apierror.ErrInvalidToken
@@ -36,7 +36,6 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 			return nil, apierror.ErrInvalidToken
 		}
 
-		logger.Error("Ошибка при получения refresh-токена из redis (userID из JWT: %d): %v", userIDFromJWT, err)
 		return nil, apierror.ErrInternal
 	}
 
@@ -56,7 +55,6 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 	}
 
 	if err := s.refreshStore.Delete(ctx, refreshToken); err != nil {
-		logger.Error("Ошибка при удалении refresh-токена из redis для userID %v: %v", userID, err)
 		return nil, err
 	}
 
@@ -65,19 +63,17 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 	if err := s.refreshStore.RemoveFromUserSet(ctx, userID, oldHash); err != nil {
 	}
 
-	accessToken, err := token.GenerateAccessToken(int(userID), user.TokenVersion)
+	accessToken, err := s.jwt.GenerateAccessToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
-	logger.Info("Сгенерирован access-токена для userID %v", userID)
 
-	newRefreshToken, err := token.GenerateRefreshToken(int(userID), user.TokenVersion)
+	newRefreshToken, err := s.jwt.GenerateRefreshToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации нового refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
-	logger.Info("Сгенерирован новый refresh-токен для userID %v", userID)
 
 	hash := token.HashToken(newRefreshToken)
 
@@ -88,6 +84,8 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 	if err := s.refreshStore.AddToUserSet(ctx, userID, hash); err != nil {
 		return nil, err
 	}
+
+	logger.Info("Refresh-токен успешно обновлён для userID: %v", userIDFromJWT)
 
 	return &auth.LoginOutput{
 		AccessToken: accessToken,

@@ -25,7 +25,6 @@ func (s *RefreshStore) Save(ctx context.Context, userID int64, refreshToken stri
 		return err
 	}
 
-	logger.Info("Refresh-токен сохранен в redis для userID: %v (TTL: %v)", userID, token.RefreshTokenTTL)
 	return nil
 }
 
@@ -38,10 +37,10 @@ func (s *RefreshStore) Get(ctx context.Context, refreshToken string) (int64, err
 	}
 
 	if err != nil {
+		logger.Error("Ошибка при получении refresh-токена: %v", err)
 		return 0, err
 	}
 
-	logger.Info("Refresh-токен получен из redis: %s...", refreshToken[:8])
 	return val, nil
 }
 
@@ -49,10 +48,10 @@ func (s *RefreshStore) Delete(ctx context.Context, refreshToken string) error {
 	hash := token.HashToken(refreshToken)
 	key := RefreshKey(hash)
 	if err := s.redis.Del(ctx, key).Err(); err != nil {
+		logger.Error("Ошибка при удалении refresh-токена: %v", err)
 		return err
 	}
 
-	logger.Info("Refresh-токен удален из redis: %s...", refreshToken[:8])
 	return nil
 }
 

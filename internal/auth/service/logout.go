@@ -23,10 +23,9 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 		return apierror.Validation(fields)
 	}
 
-	userIDFromJWT, _, err := token.ParseToken(refreshToken)
+	userIDFromJWT, _, err := s.jwt.ParseToken(refreshToken)
 	if err != nil {
 		if err := s.refreshStore.Delete(ctx, refreshToken); err != nil {
-			logger.Error("Ошибка при удалении битого refresh-токена (%s) из redis при logout: %v", refreshToken[:8], err)
 			return err
 		}
 
@@ -36,7 +35,6 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	hash := token.HashToken(refreshToken)
 
 	if err := s.refreshStore.Delete(ctx, refreshToken); err != nil {
-		logger.Error("Ошибка при удаления refresh-токена (%s) из redis при logout для userID %d: %v", refreshToken[:8], userIDFromJWT, err)
 		return err
 	}
 

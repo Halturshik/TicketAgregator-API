@@ -35,7 +35,6 @@ func (s *RegistrationStore) Save(ctx context.Context, email string, data auth.Re
 		return err
 	}
 
-	logger.Info("Регистрационные данные сохранены в redis для %s (TTL: %v)", email, RegistrationTTL)
 	return nil
 }
 
@@ -52,7 +51,6 @@ func (s *RegistrationStore) Get(ctx context.Context, email string) (*auth.Regist
 		return nil, err
 	}
 
-	logger.Info("Регистрационные данные получены из redis для %s", email)
 	return &result, nil
 }
 
@@ -62,6 +60,5 @@ func (s *RegistrationStore) Delete(ctx context.Context, email string) error {
 		return err
 	}
 
-	logger.Info("Регистрационные данные удалены из redis для %s", email)
 	return nil
 }

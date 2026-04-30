@@ -18,6 +18,8 @@ type Config struct {
 	RedisPort     string
 	RedisPassword string
 	RedisDB       int
+
+	JWTSecret string
 }
 
 func LoadConfig() (*Config, error) {
@@ -32,6 +34,7 @@ func LoadConfig() (*Config, error) {
 		RedisHost:     os.Getenv("REDIS_HOST"),
 		RedisPort:     os.Getenv("REDIS_PORT"),
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
+		JWTSecret:     os.Getenv("JWT_SECRET"),
 	}
 
 	if cfg.DBHost == "" {
@@ -70,6 +73,10 @@ func LoadConfig() (*Config, error) {
 		}
 	} else {
 		cfg.RedisDB = 0
+	}
+
+	if cfg.JWTSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET не указан")
 	}
 
 	return cfg, nil

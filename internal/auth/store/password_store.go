@@ -27,7 +27,6 @@ func (s *ResetPasswordStore) SaveVerified(ctx context.Context, email string) err
 		return err
 	}
 
-	logger.Info("Подтверждение верификации сохранено в redis для %s (TTL: %v)", email, ResetPasswordTTL)
 	return nil
 }
 
@@ -38,7 +37,6 @@ func (s *ResetPasswordStore) IsVerified(ctx context.Context, email string) (bool
 		return false, err
 	}
 
-	logger.Info("Подтверждение верификации получено из redis для %s", email)
 	return exists == 1, nil
 }
 
@@ -48,6 +46,5 @@ func (s *ResetPasswordStore) Delete(ctx context.Context, email string) error {
 		return err
 	}
 
-	logger.Info("Подтверждение верификации удалено из redis для %s", email)
 	return nil
 }

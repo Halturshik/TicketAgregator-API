@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/app"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/code"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/service"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/store"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
@@ -45,9 +48,27 @@ func main() {
 
 	infraStore := postgres.NewStore(dbConnection)
 	authRepo := repository.NewRepository(infraStore.DB)
-	mail := &mailer.ConsoleMailer{}
+	jwtService := token.NewJWTService(cfg.JWTSecret)
 
-	authService := service.NewService(authRepo, mail, redisClient)
+	mailer := &mailer.ConsoleMailer{}
+	codeStore := store.NewCodeService(redisClient)
+	codeSender := code.NewCodeSender(codeStore, mailer)
+	registrationStore := store.NewRegistrationStore(redisClient)
+	loginStore := store.NewLoginStore(redisClient)
+	refreshStore := store.NewRefreshStore(redisClient)
+	resetPasswordStore := store.NewResetStore(redisClient)
+
+	authService := service.NewService(
+		authRepo,
+		codeSender,
+		codeStore,
+		registrationStore,
+		loginStore,
+		refreshStore,
+		resetPasswordStore,
+		jwtService,
+	)
+
 	authHandler := handlers.New(authService)
 
 	apiServer := app.NewAPI(authHandler)

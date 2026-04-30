@@ -65,3 +65,9 @@ type ResetPasswordStore interface {
 	IsVerified(ctx context.Context, email string) (bool, error)
 	Delete(ctx context.Context, email string) error
 }
+
+type TokenManager interface {
+	GenerateAccessToken(userID int, version int) (string, error)
+	GenerateRefreshToken(userID int, version int) (string, error)
+	ParseToken(tokenStr string) (int, int, error)
+}

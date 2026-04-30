@@ -52,7 +52,6 @@ func (s *Service) VerifyResetCode(ctx context.Context, in auth.PasswordVerifyInp
 	}
 
 	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
-		logger.Warn("Ошибка при инвалидации кода после смены пароля для %s: %v", in.Email, err)
 	}
 
 	return nil
@@ -82,6 +81,7 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	}
 
 	if !ok {
+		logger.Warn("Попытка смены пароля без подтверждённого кода для email: %s", in.Email)
 		return nil, apierror.ErrUnauthorized
 	}
 
@@ -110,18 +110,20 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 		return nil, err
 	}
 
-	logger.Info("Пароль изменён для user_id=%d", user.ID)
+	logger.Info("Пароль изменён для userID/email: %v/%s", user.ID, in.Email)
 
 	if err := s.refreshStore.DeleteAllForUser(ctx, int64(user.ID)); err != nil {
 	}
 
-	accessToken, err := token.GenerateAccessToken(user.ID, newVersion)
+	accessToken, err := s.jwt.GenerateAccessToken(user.ID, newVersion)
 	if err != nil {
+		logger.Error("Ошибка при генерации access-токен для userID %v: %v", user.ID, err)
 		return nil, err
 	}
 
-	refreshToken, err := token.GenerateRefreshToken(user.ID, newVersion)
+	refreshToken, err := s.jwt.GenerateRefreshToken(user.ID, newVersion)
 	if err != nil {
+		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", user.ID, err)
 		return nil, err
 	}
 

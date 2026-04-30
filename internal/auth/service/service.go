@@ -3,8 +3,6 @@ package service
 import (
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/code"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/store"
-	redisClient "github.com/redis/go-redis/v9"
 )
 
 type Service struct {
@@ -15,15 +13,20 @@ type Service struct {
 	loginStore         auth.LoginStore
 	refreshStore       auth.RefreshStore
 	resetPasswordStore auth.ResetPasswordStore
+	jwt                auth.TokenManager
 }
 
-func NewService(userStore auth.UserStore, mailer auth.Mailer, client *redisClient.Client) auth.AuthService {
-	codeStore := store.NewCodeService(client)
-	codeSender := code.NewCodeSender(codeStore, mailer)
-	registrationStore := store.NewRegistrationStore(client)
-	loginStore := store.NewLoginStore(client)
-	refreshStore := store.NewRefreshStore(client)
-	resetPasswordStore := store.NewResetStore(client)
+func NewService(
+	userStore auth.UserStore,
+	codeSender *code.CodeSender,
+	codeStore auth.CodeStore,
+	registrationStore auth.RegistrationStore,
+	loginStore auth.LoginStore,
+	refreshStore auth.RefreshStore,
+	resetPasswordStore auth.ResetPasswordStore,
+	jwt auth.TokenManager,
+) auth.AuthService {
+
 	return &Service{
 		store:              userStore,
 		codeSender:         codeSender,
@@ -32,5 +35,6 @@ func NewService(userStore auth.UserStore, mailer auth.Mailer, client *redisClien
 		loginStore:         loginStore,
 		refreshStore:       refreshStore,
 		resetPasswordStore: resetPasswordStore,
+		jwt:                jwt,
 	}
 }

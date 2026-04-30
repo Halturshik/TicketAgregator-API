@@ -72,19 +72,17 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 		return nil, err
 	}
 
-	accessToken, err := token.GenerateAccessToken(int(userID), user.TokenVersion)
+	accessToken, err := s.jwt.GenerateAccessToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
-	logger.Info("Сгенерирован access-токена для userID %v", userID)
 
-	refreshToken, err := token.GenerateRefreshToken(int(userID), user.TokenVersion)
+	refreshToken, err := s.jwt.GenerateRefreshToken(int(userID), user.TokenVersion)
 	if err != nil {
 		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
-	logger.Info("Сгенерирован refresh-токен для userID %v", userID)
 
 	hash := token.HashToken(refreshToken)
 
@@ -103,6 +101,8 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 	if err := s.loginStore.Delete(ctx, in.Email); err != nil {
 		return nil, err
 	}
+
+	logger.Info("Успешная авторизация для userID/email: %v/%s", userID, in.Email)
 
 	return &auth.LoginOutput{
 		AccessToken: accessToken,

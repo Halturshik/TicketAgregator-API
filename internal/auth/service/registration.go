@@ -110,13 +110,13 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		return nil, err
 	}
 
-	accessToken, err := token.GenerateAccessToken(int(userID), 1)
+	accessToken, err := s.jwt.GenerateAccessToken(int(userID), 1)
 	if err != nil {
 		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
 
-	refreshToken, err := token.GenerateRefreshToken(int(userID), 1)
+	refreshToken, err := s.jwt.GenerateRefreshToken(int(userID), 1)
 	if err != nil {
 		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
 		return nil, err
@@ -133,14 +133,14 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 	}
 
 	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
-		logger.Warn("Ошибка при инвалидации кода после регистрации %s: %v", in.Email, err)
 		return nil, err
 	}
 
 	if err := s.registrationStore.Delete(ctx, in.Email); err != nil {
-		logger.Warn("Ошибка при очистке регистрационных данных из временного хранилища %s: %v", in.Email, err)
 		return nil, err
 	}
+
+	logger.Info("Успешная регистрация нового пользователя: userID/email: %v/%s", userID, in.Email)
 
 	return &auth.LoginOutput{
 		AccessToken: accessToken,

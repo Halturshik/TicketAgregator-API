@@ -53,7 +53,6 @@ func (c *CodeStore) Generate(ctx context.Context, email string) (string, error) 
 		return "", err
 	}
 
-	logger.Info("Код подтверждения сгенерирован для %s", email)
 	return code, nil
 }
 
@@ -105,7 +104,6 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 		return apierror.ErrInvalidVerificationCode
 	}
 
-	logger.Info("Код подтверждения успешно введен для %s", email)
 	return nil
 }
 
@@ -114,6 +112,7 @@ func (c *CodeStore) Clear(ctx context.Context, email string) error {
 	attemptsKey := AttemptsKey(email)
 
 	if err := c.redis.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
+		logger.Warn("Ошибка при инвалидации кода для %s: %v", email, err)
 		return err
 	}
 

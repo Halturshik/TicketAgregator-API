@@ -28,7 +28,6 @@ func (s *LoginStore) Save(ctx context.Context, email string, userID int64) error
 		return err
 	}
 
-	logger.Info("Авторизационные данные сохранены в redis для %s (TTL: %v)", email, LoginTTL)
 	return nil
 }
 
@@ -39,7 +38,6 @@ func (s *LoginStore) Get(ctx context.Context, email string) (int64, error) {
 		return 0, err
 	}
 
-	logger.Info("Авторизационные данные получены из redis для %s", email)
 	return strconv.ParseInt(val, 10, 64)
 }
 
@@ -49,6 +47,5 @@ func (s *LoginStore) Delete(ctx context.Context, email string) error {
 		return err
 	}
 
-	logger.Info("Авторизационные данные удалены из redis для %s", email)
 	return nil
 }
