@@ -51,8 +51,8 @@ func main() {
 	jwtService := token.NewJWTService(cfg.JWTSecret)
 
 	mailer := &mailer.ConsoleMailer{}
+	codeGenerator := &code.RandomCodeGenerator{}
 	codeStore := store.NewCodeService(redisClient)
-	codeSender := code.NewCodeSender(codeStore, mailer)
 	registrationStore := store.NewRegistrationStore(redisClient)
 	loginStore := store.NewLoginStore(redisClient)
 	refreshStore := store.NewRefreshStore(redisClient)
@@ -60,7 +60,8 @@ func main() {
 
 	authService := service.NewService(
 		authRepo,
-		codeSender,
+		mailer,
+		codeGenerator,
 		codeStore,
 		registrationStore,
 		loginStore,

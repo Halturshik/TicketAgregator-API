@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
@@ -40,7 +41,7 @@ func (s *Service) LoginStart(ctx context.Context, in auth.LoginStartInput) error
 		return err
 	}
 
-	if err := token.CheckPassword(user.PasswordHash, in.Password); err != nil {
+	if err := password.CheckPassword(user.PasswordHash, in.Password); err != nil {
 		return apierror.ErrInvalidCredentials
 	}
 
@@ -48,7 +49,17 @@ func (s *Service) LoginStart(ctx context.Context, in auth.LoginStartInput) error
 		return err
 	}
 
-	if err := s.codeSender.Send(ctx, in.Email); err != nil {
+	code, err := s.codeGenerator.GenerateVerificationCode()
+	if err != nil {
+		logger.Warn("Ошибка при генерации кода для %s: %v", in.Email, err)
+		return err
+	}
+
+	if err := s.codeStore.RequestCode(ctx, in.Email, code); err != nil {
+		return err
+	}
+
+	if err := s.mailer.SendVerificationEmail(ctx, in.Email, code); err != nil {
 		return err
 	}
 

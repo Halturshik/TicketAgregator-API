@@ -30,7 +30,7 @@ type UserStore interface {
 }
 
 type Mailer interface {
-	SendVerificationEmail(to string, code string) error
+	SendVerificationEmail(ctx context.Context, to string, code string) error
 }
 
 type RegistrationStore interface {
@@ -46,7 +46,7 @@ type LoginStore interface {
 }
 
 type CodeStore interface {
-	Generate(ctx context.Context, email string) (string, error)
+	RequestCode(ctx context.Context, email string, code string) error
 	Verify(ctx context.Context, email, code string) error
 	Clear(ctx context.Context, email string) error
 }
@@ -70,4 +70,8 @@ type TokenManager interface {
 	GenerateAccessToken(userID int, version int) (string, error)
 	GenerateRefreshToken(userID int, version int) (string, error)
 	ParseToken(tokenStr string) (int, int, error)
+}
+
+type CodeGenerator interface {
+	GenerateVerificationCode() (string, error)
 }

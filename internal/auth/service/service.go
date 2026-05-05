@@ -2,13 +2,13 @@ package service
 
 import (
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/code"
 )
 
 type Service struct {
 	store              auth.UserStore
 	codeStore          auth.CodeStore
-	codeSender         *code.CodeSender
+	mailer             auth.Mailer
+	codeGenerator      auth.CodeGenerator
 	registrationStore  auth.RegistrationStore
 	loginStore         auth.LoginStore
 	refreshStore       auth.RefreshStore
@@ -18,7 +18,8 @@ type Service struct {
 
 func NewService(
 	userStore auth.UserStore,
-	codeSender *code.CodeSender,
+	mailer auth.Mailer,
+	codeGenerator auth.CodeGenerator,
 	codeStore auth.CodeStore,
 	registrationStore auth.RegistrationStore,
 	loginStore auth.LoginStore,
@@ -29,7 +30,8 @@ func NewService(
 
 	return &Service{
 		store:              userStore,
-		codeSender:         codeSender,
+		mailer:             mailer,
+		codeGenerator:      codeGenerator,
 		codeStore:          codeStore,
 		registrationStore:  registrationStore,
 		loginStore:         loginStore,

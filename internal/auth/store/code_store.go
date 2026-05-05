@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/code"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
@@ -17,21 +16,21 @@ func NewCodeService(redis *redis.Client) *CodeStore {
 	return &CodeStore{redis: redis}
 }
 
-func (c *CodeStore) Generate(ctx context.Context, email string) (string, error) {
+func (c *CodeStore) RequestCode(ctx context.Context, email string, code string) error {
 	rateKey := RateLimitKey(email)
 	if cnt, err := c.redis.Exists(ctx, rateKey).Result(); err != nil {
-		return "", err
+		return err
 	} else if cnt == 1 {
 		logger.Warn("Лимит на запрос кода для %s", email)
-		return "", apierror.ErrCodeRateLimited
+		return apierror.ErrCodeRateLimited
 	}
 
 	cooldownKey := CooldownKey(email)
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
-		return "", err
+		return err
 	} else if cnt == 1 {
 		logger.Warn("Запрос кода с блокировкой для %s", email)
-		return "", apierror.ErrTooManyAttempts
+		return apierror.ErrTooManyAttempts
 	}
 
 	codeKey := CodeKey(email)
@@ -39,21 +38,15 @@ func (c *CodeStore) Generate(ctx context.Context, email string) (string, error) 
 
 	c.redis.Del(ctx, codeKey, attemptsKey)
 
-	code, err := code.GenerateVerificationCode()
-	if err != nil {
-		logger.Error("Ошибка при генерации кода для %s: %v", email, err)
-		return "", err
-	}
-
 	if err := c.redis.Set(ctx, codeKey, code, VerifyCodeTTL).Err(); err != nil {
-		return "", err
+		return err
 	}
 
 	if err := c.redis.Set(ctx, rateKey, "1", CodeRateLimitWindow).Err(); err != nil {
-		return "", err
+		return err
 	}
 
-	return code, nil
+	return nil
 }
 
 func (c *CodeStore) Verify(ctx context.Context, email, code string) error {

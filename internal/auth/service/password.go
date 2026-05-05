@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
@@ -37,7 +38,21 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 		return nil
 	}
 
-	return s.codeSender.Send(ctx, email)
+	code, err := s.codeGenerator.GenerateVerificationCode()
+	if err != nil {
+		logger.Warn("Ошибка при генерации кода для %s: %v", email, err)
+		return err
+	}
+
+	if err := s.codeStore.RequestCode(ctx, email, code); err != nil {
+		return err
+	}
+
+	if err := s.mailer.SendVerificationEmail(ctx, email, code); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) VerifyResetCode(ctx context.Context, in auth.PasswordVerifyInput) error {
@@ -94,11 +109,11 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 		return nil, err
 	}
 
-	if err := token.CheckPassword(user.PasswordHash, in.Password); err == nil {
+	if err := password.CheckPassword(user.PasswordHash, in.Password); err == nil {
 		return nil, apierror.ErrSamePassword
 	}
 
-	hashPassword, err := token.HashPassword(in.Password)
+	hashPassword, err := password.HashPassword(in.Password)
 	if err != nil {
 		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return nil, err

@@ -7,7 +7,9 @@ import (
 
 const numbers = "0123456789"
 
-func GenerateVerificationCode() (string, error) {
+type RandomCodeGenerator struct{}
+
+func (r *RandomCodeGenerator) GenerateVerificationCode() (string, error) {
 	code := make([]byte, 4)
 
 	for i := range code {
