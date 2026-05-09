@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 )
 
 func (j *JWTService) GenerateAccessToken(userID int, version int) (string, error) {
 	claims := &Claims{
 		UserID:  userID,
 		Version: version,
+		JTI:     uuid.NewString(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -25,6 +27,7 @@ func (j *JWTService) GenerateRefreshToken(userID int, version int) (string, erro
 	claims := &Claims{
 		UserID:  userID,
 		Version: version,
+		JTI:     uuid.NewString(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(RefreshTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

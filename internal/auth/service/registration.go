@@ -143,10 +143,6 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		return nil, err
 	}
 
-	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
-		return nil, err
-	}
-
 	if err := s.registrationStore.Delete(ctx, in.Email); err != nil {
 		return nil, err
 	}
@@ -154,6 +150,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 	logger.Info("Успешная регистрация нового пользователя: userID/email: %v/%s", userID, in.Email)
 
 	return &auth.LoginOutput{
-		AccessToken: accessToken,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
 }

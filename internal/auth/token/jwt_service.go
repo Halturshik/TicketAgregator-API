@@ -13,7 +13,8 @@ func NewJWTService(secret string) *JWTService {
 }
 
 type Claims struct {
-	UserID  int `json:"user_id"`
-	Version int `json:"version"`
+	UserID  int    `json:"user_id"`
+	Version int    `json:"version"`
+	JTI     string `json:"jti"`
 	jwt.RegisteredClaims
 }

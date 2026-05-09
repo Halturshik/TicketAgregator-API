@@ -88,6 +88,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*auth.Login
 	logger.Info("Refresh-токен успешно обновлён для userID: %v", userIDFromJWT)
 
 	return &auth.LoginOutput{
-		AccessToken: accessToken,
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
 	}, nil
 }

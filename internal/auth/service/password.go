@@ -66,9 +66,6 @@ func (s *Service) VerifyResetCode(ctx context.Context, in auth.PasswordVerifyInp
 		return err
 	}
 
-	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
-	}
-
 	return nil
 }
 
@@ -155,6 +152,7 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	}
 
 	return &auth.LoginOutput{
-		AccessToken: accessToken,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
 }

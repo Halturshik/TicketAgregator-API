@@ -105,10 +105,6 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 		return nil, err
 	}
 
-	if err := s.codeStore.Clear(ctx, in.Email); err != nil {
-		return nil, err
-	}
-
 	if err := s.loginStore.Delete(ctx, in.Email); err != nil {
 		return nil, err
 	}
@@ -116,6 +112,7 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 	logger.Info("Успешная авторизация для userID/email: %v/%s", userID, in.Email)
 
 	return &auth.LoginOutput{
-		AccessToken: accessToken,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
@@ -53,6 +54,7 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 	attemptsKey := AttemptsKey(email)
 	cooldownKey := CooldownKey(email)
 	codeKey := CodeKey(email)
+	lockKey := "lock:verify:" + codeKey
 
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
 		return err
@@ -60,6 +62,17 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 		logger.Warn("Попытка ввода кода во время активной блокировки для %s", email)
 		return apierror.ErrTooManyAttempts
 	}
+
+	ok, err := c.redis.SetNX(ctx, lockKey, "1", 5*time.Second).Result()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		logger.Warn("Попытка паралелльного ввода кода для %s", email)
+		return apierror.ErrInvalidVerificationCode
+	}
+
+	defer c.redis.Del(ctx, lockKey)
 
 	storedCode, err := c.redis.Get(ctx, codeKey).Result()
 	if err != nil {
@@ -87,8 +100,7 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 			if err := c.redis.Set(ctx, cooldownKey, "1", CooldownAfterFailed).Err(); err != nil {
 				return err
 			}
-			c.redis.Del(ctx, codeKey)
-			c.redis.Del(ctx, attemptsKey)
+			c.redis.Del(ctx, codeKey, attemptsKey)
 
 			return apierror.ErrTooManyAttempts
 		}
@@ -97,18 +109,12 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 		return apierror.ErrInvalidVerificationCode
 	}
 
-	return nil
-}
-
-func (c *CodeStore) Clear(ctx context.Context, email string) error {
-	codeKey := CodeKey(email)
-	attemptsKey := AttemptsKey(email)
-
 	if err := c.redis.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
 		logger.Warn("Ошибка при инвалидации кода для %s: %v", email, err)
 		return err
 	}
 
 	logger.Info("Код и попытки успешно очищены для %s", email)
+
 	return nil
 }

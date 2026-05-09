@@ -48,7 +48,6 @@ type LoginStore interface {
 type CodeStore interface {
 	RequestCode(ctx context.Context, email string, code string) error
 	Verify(ctx context.Context, email, code string) error
-	Clear(ctx context.Context, email string) error
 }
 
 type RefreshStore interface {
