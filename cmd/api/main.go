@@ -9,17 +9,40 @@ import (
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/app"
+	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/code"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/service"
+	authhandlers "github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
+	authrepo "github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
+	authservice "github.com/Halturshik/TicketAgregator-API/internal/auth/service"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/store"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
+	bonushandlers "github.com/Halturshik/TicketAgregator-API/internal/bonus/handlers"
+	bonusrepo "github.com/Halturshik/TicketAgregator-API/internal/bonus/repository"
+	bonusservice "github.com/Halturshik/TicketAgregator-API/internal/bonus/service"
+	documenthandlers "github.com/Halturshik/TicketAgregator-API/internal/documents/handlers"
+	documentrepo "github.com/Halturshik/TicketAgregator-API/internal/documents/repository"
+	documentservice "github.com/Halturshik/TicketAgregator-API/internal/documents/service"
+	orderhandlers "github.com/Halturshik/TicketAgregator-API/internal/orders/handlers"
+	orderrepo "github.com/Halturshik/TicketAgregator-API/internal/orders/repository"
+	orderservice "github.com/Halturshik/TicketAgregator-API/internal/orders/service"
+	passengerhandlers "github.com/Halturshik/TicketAgregator-API/internal/passengers/handlers"
+	passengerrepo "github.com/Halturshik/TicketAgregator-API/internal/passengers/repository"
+	passengerservice "github.com/Halturshik/TicketAgregator-API/internal/passengers/service"
+	paymenthandlers "github.com/Halturshik/TicketAgregator-API/internal/payments/handlers"
+	paymentrepo "github.com/Halturshik/TicketAgregator-API/internal/payments/repository"
+	paymentservice "github.com/Halturshik/TicketAgregator-API/internal/payments/service"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/postgres"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/redis"
+	searchhandlers "github.com/Halturshik/TicketAgregator-API/internal/search/handlers"
+	searchrepo "github.com/Halturshik/TicketAgregator-API/internal/search/repository"
+	searchservice "github.com/Halturshik/TicketAgregator-API/internal/search/service"
+	searchstore "github.com/Halturshik/TicketAgregator-API/internal/search/store"
+	userhandlers "github.com/Halturshik/TicketAgregator-API/internal/users/handlers"
+	userrepo "github.com/Halturshik/TicketAgregator-API/internal/users/repository"
+	userservice "github.com/Halturshik/TicketAgregator-API/internal/users/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
@@ -47,7 +70,7 @@ func main() {
 	defer redisClient.Close()
 
 	infraStore := postgres.NewStore(dbConnection)
-	authRepo := repository.NewRepository(infraStore.DB)
+	authRepo := authrepo.NewRepository(infraStore.DB)
 	jwtService := token.NewJWTService(cfg.JWTSecret)
 
 	mailer := &mailer.ConsoleMailer{}
@@ -58,7 +81,7 @@ func main() {
 	refreshStore := store.NewRefreshStore(redisClient)
 	resetPasswordStore := store.NewResetStore(redisClient)
 
-	authService := service.NewService(
+	authService := authservice.NewService(
 		authRepo,
 		mailer,
 		codeGenerator,
@@ -70,9 +93,37 @@ func main() {
 		jwtService,
 	)
 
-	authHandler := handlers.New(authService)
+	authHandler := authhandlers.New(authService)
+	authMiddleware := auth.NewAuthMiddleware(authRepo, jwtService)
 
-	apiServer := app.NewAPI(authHandler)
+	userHandler := userhandlers.New(userservice.NewService(userrepo.NewRepository(infraStore.DB)))
+	passengerHandler := passengerhandlers.New(passengerservice.NewService(passengerrepo.NewRepository(infraStore.DB)))
+	documentSvc := documentservice.NewService(documentrepo.NewRepository(infraStore.DB))
+	documentHandler := documenthandlers.New(documentSvc)
+
+	searchSvc := searchservice.NewService(
+		searchrepo.NewRepository(infraStore.DB),
+		searchstore.New(redisClient),
+	)
+	searchHandler := searchhandlers.New(searchSvc)
+
+	orderSvc := orderservice.NewService(orderrepo.NewRepository(infraStore.DB), searchSvc, documentSvc)
+	orderHandler := orderhandlers.New(orderSvc)
+
+	paymentHandler := paymenthandlers.New(paymentservice.NewService(paymentrepo.NewRepository(infraStore.DB)))
+	bonusHandler := bonushandlers.New(bonusservice.NewService(bonusrepo.NewRepository(infraStore.DB)))
+
+	apiServer := app.NewAPI(
+		authHandler,
+		userHandler,
+		passengerHandler,
+		documentHandler,
+		searchHandler,
+		orderHandler,
+		paymentHandler,
+		bonusHandler,
+		authMiddleware,
+	)
 
 	r := chi.NewRouter()
 	apiServer.Init(r)

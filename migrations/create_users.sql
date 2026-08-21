@@ -5,20 +5,19 @@ SELECT 'up SQL query';
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
     birth_date DATE NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    token_version INTEGER NOT NULL DEFAULT 1,
     is_russian BOOLEAN NOT NULL,
-    bonus_points INT DEFAULT 0,
 
-    internal_passport VARCHAR(50),
-    international_passport VARCHAR(50),
-    birth_certificate VARCHAR(50),
-    foreign_passport VARCHAR(50)
+    bonus_points INT NOT NULL DEFAULT 0 CHECK (bonus_points >= 0),
+    token_version INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- +goose Down

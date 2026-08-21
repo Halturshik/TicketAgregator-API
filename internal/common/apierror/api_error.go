@@ -24,6 +24,8 @@ const (
 	FieldEmail        = "email"
 	FieldPassword     = "password"
 	FieldBirthDate    = "birth_date"
+	FieldPassengers   = "passengers"
+	FieldDocument     = "document"
 	FieldCode         = "code"
 	FieldRefreshToken = "refresh_token"
 )
@@ -109,6 +111,41 @@ var (
 		Code:    "same_password",
 		Message: "Новый пароль не должен совпадать со старым",
 		Status:  http.StatusBadRequest,
+	}
+	ErrInvalidRequest = &APIError{
+		Code:    "invalid_request",
+		Message: "Некорректный запрос",
+		Status:  http.StatusBadRequest,
+	}
+
+	ErrNotFound = &APIError{
+		Code:    "not_found",
+		Message: "Запрошенный ресурс не найден",
+		Status:  http.StatusNotFound,
+	}
+
+	ErrForbidden = &APIError{
+		Code:    "forbidden",
+		Message: "Недостаточно прав для выполнения операции",
+		Status:  http.StatusForbidden,
+	}
+
+	ErrInvalidDocument = &APIError{
+		Code:    "invalid_document",
+		Message: "Некорректно указаны данные документа",
+		Status:  http.StatusUnprocessableEntity,
+	}
+
+	ErrDocumentNotAllowed = &APIError{
+		Code:    "document_not_allowed",
+		Message: "Указанный документ не подходит для выбранного маршрута",
+		Status:  http.StatusUnprocessableEntity,
+	}
+
+	ErrPassengerCountMismatch = &APIError{
+		Code:    "passenger_count_mismatch",
+		Message: "Количество пассажиров не совпадает с параметрами поиска",
+		Status:  http.StatusConflict,
 	}
 )
 

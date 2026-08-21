@@ -21,12 +21,7 @@ INSERT INTO document_rules (
 INSERT INTO document_rules (
     transport_type, is_international, min_age, max_age, is_russian,
     allow_international_passport
-) VALUES ('any', true, 14, 150, true, true);
-
-INSERT INTO document_rules (
-    transport_type, is_international, min_age, max_age, is_russian,
-    allow_international_passport
-) VALUES ('any', true, 0, 13, true, true);
+) VALUES ('any', true, 0, 150, true, true);
 
 INSERT INTO document_rules (
     transport_type, is_international, min_age, max_age, is_russian,

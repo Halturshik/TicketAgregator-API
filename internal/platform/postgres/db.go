@@ -39,7 +39,7 @@ func ConnectDB(cfg *config.Config) (*sql.DB, error) {
 		return nil, fmt.Errorf("ошибка установки диалекта goose: %w", err)
 	}
 
-	migrationsDir := "./database/migrations"
+	migrationsDir := "./migrations"
 
 	if err := goose.Up(db, migrationsDir); err != nil {
 		return nil, fmt.Errorf("ошибка при применении миграций: %w", err)

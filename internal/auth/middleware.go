@@ -69,6 +69,39 @@ func (m *AuthMiddleware) Auth(next http.Handler) http.Handler {
 	})
 }
 
+func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		userID, tokenVersion, err := m.jwt.ParseToken(tokenStr)
+		if err != nil {
+			logger.Warn("Не удалось разобрать optional access-токен: %s %s", r.Method, r.URL.Path)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		user, err := m.store.GetUserByID(r.Context(), userID)
+		if err != nil || user.TokenVersion != tokenVersion {
+			logger.Warn("Optional access-токен не прошел проверку пользователя: userID=%d", userID)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), userIDKey, userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func UserIDFromContext(ctx context.Context) (int, bool) {
 	val := ctx.Value(userIDKey)
 	if val == nil {
