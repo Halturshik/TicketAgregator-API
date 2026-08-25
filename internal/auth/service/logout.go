@@ -23,7 +23,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 		return apierror.Validation(fields)
 	}
 
-	userIDFromJWT, _, err := s.jwt.ParseToken(refreshToken)
+	userIDFromJWT, _, err := s.jwt.ParseRefreshToken(refreshToken)
 	if err != nil {
 		if err := s.refreshStore.Delete(ctx, refreshToken); err != nil {
 			return err

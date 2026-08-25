@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
@@ -34,6 +35,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID int, in users.Update
 	}
 
 	profile, err := s.repo.UpdateProfile(ctx, userID, in, birthDate)
+	if errors.Is(err, users.ErrNotFound) {
+		return nil, apierror.ErrNotFound
+	}
 	if err != nil {
 		logger.Error("Ошибка при обновлении профиля пользователя userID=%d: %v", userID, err)
 		return nil, err

@@ -2,24 +2,10 @@ package provider
 
 import (
 	"context"
-	"sort"
 	"sync"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
-
-type Request struct {
-	Input  search.SearchInput
-	From   search.City
-	To     search.City
-	Cities []search.City
-	Count  int
-}
-
-type Provider interface {
-	Transport() string
-	Generate(ctx context.Context, req Request) ([]search.Offer, error)
-}
 
 type MockProvider struct {
 	transport string
@@ -28,7 +14,7 @@ type MockProvider struct {
 
 func NewMockProvider(transport string, carriers []Carrier) *MockProvider {
 	if len(carriers) == 0 {
-		carriers = []Carrier{{Name: "Mock " + transport, Code: "MCK"}}
+		carriers = []Carrier{{Name: "Mock " + transport, Code: DefaultCarrierCode}}
 	}
 	return &MockProvider{
 		transport: transport,
@@ -40,14 +26,14 @@ func (p *MockProvider) Transport() string {
 	return p.transport
 }
 
-func (p *MockProvider) Generate(ctx context.Context, req Request) ([]search.Offer, error) {
+func (p *MockProvider) Generate(ctx context.Context, req Request) ([]search.TripOption, error) {
 	if req.Count <= 0 {
-		return []search.Offer{}, nil
+		return []search.TripOption{}, nil
 	}
 
 	workers := min(WorkerLimit, req.Count)
 	jobs := make(chan int)
-	results := make(chan search.Offer, req.Count)
+	results := make(chan search.TripOption, req.Count)
 
 	var wg sync.WaitGroup
 	for worker := 0; worker < workers; worker++ {
@@ -58,7 +44,7 @@ func (p *MockProvider) Generate(ctx context.Context, req Request) ([]search.Offe
 				if ctx.Err() != nil {
 					return
 				}
-				results <- p.generateOffer(req, index)
+				results <- p.generateTripOption(req, index)
 			}
 		}()
 	}
@@ -79,16 +65,13 @@ func (p *MockProvider) Generate(ctx context.Context, req Request) ([]search.Offe
 		close(results)
 	}()
 
-	offers := make([]search.Offer, 0, req.Count)
-	for offer := range results {
-		offers = append(offers, offer)
+	options := make([]search.TripOption, 0, req.Count)
+	for option := range results {
+		options = append(options, option)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	sort.Slice(offers, func(i, j int) bool {
-		return offers[i].Price < offers[j].Price
-	})
-	return offers, nil
+	return options, nil
 }

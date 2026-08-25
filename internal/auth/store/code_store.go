@@ -18,14 +18,6 @@ func NewCodeService(redis *redis.Client) *CodeStore {
 }
 
 func (c *CodeStore) RequestCode(ctx context.Context, email string, code string) error {
-	rateKey := RateLimitKey(email)
-	if cnt, err := c.redis.Exists(ctx, rateKey).Result(); err != nil {
-		return err
-	} else if cnt == 1 {
-		logger.Warn("Лимит на запрос кода для %s", email)
-		return apierror.ErrCodeRateLimited
-	}
-
 	cooldownKey := CooldownKey(email)
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
 		return err
@@ -34,18 +26,34 @@ func (c *CodeStore) RequestCode(ctx context.Context, email string, code string) 
 		return apierror.ErrTooManyAttempts
 	}
 
+	rateKey := RateLimitKey(email)
+	claimed, err := c.redis.SetNX(ctx, rateKey, "1", CodeRateLimitWindow).Result()
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		logger.Warn("Лимит на запрос кода для %s", email)
+		return apierror.ErrCodeRateLimited
+	}
+	keepRateLimit := false
+	defer func() {
+		if !keepRateLimit {
+			c.redis.Del(ctx, rateKey)
+		}
+	}()
+
 	codeKey := CodeKey(email)
 	attemptsKey := AttemptsKey(email)
 
-	c.redis.Del(ctx, codeKey, attemptsKey)
+	if err := c.redis.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
+		return err
+	}
 
 	if err := c.redis.Set(ctx, codeKey, code, VerifyCodeTTL).Err(); err != nil {
 		return err
 	}
 
-	if err := c.redis.Set(ctx, rateKey, "1", CodeRateLimitWindow).Err(); err != nil {
-		return err
-	}
+	keepRateLimit = true
 
 	return nil
 }

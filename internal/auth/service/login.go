@@ -6,7 +6,6 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
@@ -34,7 +33,7 @@ func (s *Service) LoginStart(ctx context.Context, in auth.LoginStartInput) error
 
 	user, err := s.store.GetUserByEmail(ctx, in.Email)
 	if err != nil {
-		if errors.Is(err, repository.ErrUserNotFound) {
+		if errors.Is(err, auth.ErrUserNotFound) {
 			return apierror.ErrInvalidCredentials
 		}
 		logger.Error("Ошибка при получении пользователя по email %s: %v", in.Email, err)

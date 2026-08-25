@@ -1,14 +1,11 @@
 package service
 
-import (
-	"github.com/Halturshik/TicketAgregator-API/internal/users"
-	"github.com/Halturshik/TicketAgregator-API/internal/users/repository"
-)
+import "github.com/Halturshik/TicketAgregator-API/internal/users"
 
 type Service struct {
-	repo *repository.Repository
+	repo users.Repository
 }
 
-func NewService(repo *repository.Repository) users.Service {
+func NewService(repo users.Repository) users.Service {
 	return &Service{repo: repo}
 }

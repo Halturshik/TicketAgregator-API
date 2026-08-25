@@ -19,7 +19,8 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 
-	JWTSecret string
+	JWTSecret                  string
+	DocumentVerificationSecret string
 }
 
 func LoadConfig() (*Config, error) {
@@ -31,10 +32,11 @@ func LoadConfig() (*Config, error) {
 		DBName:     os.Getenv("DB_NAME"),
 		AppPort:    os.Getenv("APP_PORT"),
 
-		RedisHost:     os.Getenv("REDIS_HOST"),
-		RedisPort:     os.Getenv("REDIS_PORT"),
-		RedisPassword: os.Getenv("REDIS_PASSWORD"),
-		JWTSecret:     os.Getenv("JWT_SECRET"),
+		RedisHost:                  os.Getenv("REDIS_HOST"),
+		RedisPort:                  os.Getenv("REDIS_PORT"),
+		RedisPassword:              os.Getenv("REDIS_PASSWORD"),
+		JWTSecret:                  os.Getenv("JWT_SECRET"),
+		DocumentVerificationSecret: os.Getenv("DOCUMENT_VERIFICATION_SECRET"),
 	}
 
 	if cfg.DBHost == "" {
@@ -77,6 +79,9 @@ func LoadConfig() (*Config, error) {
 
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET не указан")
+	}
+	if cfg.DocumentVerificationSecret == "" {
+		cfg.DocumentVerificationSecret = cfg.JWTSecret
 	}
 
 	return cfg, nil

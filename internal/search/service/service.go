@@ -1,54 +1,31 @@
 package service
 
 import (
-	"context"
+	"time"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 	"github.com/Halturshik/TicketAgregator-API/internal/search/provider"
-	"github.com/Halturshik/TicketAgregator-API/internal/search/repository"
-	searchstore "github.com/Halturshik/TicketAgregator-API/internal/search/store"
+	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo      *repository.Repository
-	store     *searchstore.Store
+	repo      search.Repository
+	store     search.Store
 	providers map[string]provider.Provider
+	now       func() time.Time
+	newID     func() string
 }
 
-func NewService(repo *repository.Repository, store *searchstore.Store) search.Service {
-	carriersByType := loadCarriersByType(repo)
-
-	providers := []provider.Provider{
-		provider.NewMockProvider("avia", carriersByType["avia"]),
-		provider.NewMockProvider("rail", carriersByType["rail"]),
-		provider.NewMockProvider("bus", carriersByType["bus"]),
-	}
-	byTransport := make(map[string]provider.Provider, len(providers))
-	for _, item := range providers {
-		byTransport[item.Transport()] = item
-	}
-
-	return &Service{repo: repo, store: store, providers: byTransport}
-}
-
-func loadCarriersByType(repo *repository.Repository) map[string][]provider.Carrier {
-	result := map[string][]provider.Carrier{
-		"avia": {},
-		"rail": {},
-		"bus":  {},
-	}
-
-	items, err := repo.ListCarriers(context.Background())
+func NewService(repo search.Repository, store search.Store, carriers []search.CarrierConfig) (search.Service, error) {
+	providers, err := newProviders(carriers)
 	if err != nil {
-		logger.Error("Не удалось загрузить carriers, будут fallback-заглушки: %v", err)
-		return result
+		return nil, err
 	}
-
-	for _, c := range items {
-		result[c.TransportType] = append(result[c.TransportType], provider.Carrier{
-			ID: c.ID, Name: c.Name, Code: c.Code,
-		})
-	}
-	return result
+	return &Service{
+		repo:      repo,
+		store:     store,
+		providers: providers,
+		now:       time.Now,
+		newID:     uuid.NewString,
+	}, nil
 }

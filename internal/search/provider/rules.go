@@ -1,13 +1,22 @@
 package provider
 
+import (
+	"time"
+
+	"github.com/Halturshik/TicketAgregator-API/internal/transport"
+)
+
 const (
-	WorkerLimit = 4
+	WorkerLimit      = 4
+	ProbabilityScale = 100
+	RandomSeedStride = 7919
 
 	// Шанс пересадки (только avia + international), в процентах
 	TransferChancePercent = 35
 
 	// С какой вероятностью при пересадке меняется перевозчик на втором сегменте
 	CarrierChangeOnTransferPercent = 15
+	SameCarrierOnReturnPercent     = 75
 
 	// Сколько ближайших хабов рассматриваем при выборе пересадки
 	HubCandidatesLimit = 3
@@ -42,15 +51,24 @@ const (
 	BusMinMinutes = 120
 	BusMaxExtra   = 360
 
-	DepartureMinuteStep = 10
+	DepartureMinuteStep  = 10
+	MinutesPerDay        = 24 * 60
+	ReturnConnectionTime = time.Hour
+	PriceRandomDivisor   = 2
 
-	// Бонусы
-	BonusRate = 0.02 // 2%
+	RailRouteNumberRange = 1_000
+	BusRouteNumberRange  = 10_000
+	AviaRouteNumberRange = 100_000
+	LatinAlphabetSize    = 26
+	DefaultCarrierCode   = "MCK"
+
+	SameCountryFallbackDistance  = 1.0
+	CrossCountryFallbackDistance = 100.0
 )
 
 // Базовые цены до рандома и умножения на пассажиров
 var BasePriceByTransport = map[string]int{
-	"avia": 9000,
-	"rail": 3500,
-	"bus":  1800,
+	transport.Avia: 9000,
+	transport.Rail: 3500,
+	transport.Bus:  1800,
 }

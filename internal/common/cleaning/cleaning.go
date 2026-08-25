@@ -7,7 +7,7 @@ func Name(s string) string {
 }
 
 func Email(s string) string {
-	return strings.TrimSpace(s)
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 func Password(s string) string {

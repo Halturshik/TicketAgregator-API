@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/lib/pq"
 )
 
-func (s *Repository) CreateUser(ctx context.Context, u CreateUserParams) (int64, error) {
-	tx, err := s.DB.BeginTx(ctx, nil)
+func (r *Repository) CreateUser(ctx context.Context, u auth.CreateUserParams) (int64, error) {
+	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
@@ -26,7 +27,7 @@ func (s *Repository) CreateUser(ctx context.Context, u CreateUserParams) (int64,
 
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			return 0, ErrDuplicateEmail
+			return 0, auth.ErrDuplicateEmail
 		}
 		return 0, fmt.Errorf("insert user: %w", err)
 	}

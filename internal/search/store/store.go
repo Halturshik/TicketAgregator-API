@@ -13,6 +13,8 @@ type Store struct {
 	redis *redis.Client
 }
 
+var _ search.Store = (*Store)(nil)
+
 func New(redis *redis.Client) *Store {
 	return &Store{redis: redis}
 }
@@ -31,6 +33,9 @@ func (s *Store) Save(ctx context.Context, result *search.CachedResult) error {
 
 func (s *Store) Get(ctx context.Context, id string) (*search.CachedResult, error) {
 	data, err := s.redis.Get(ctx, key(id)).Bytes()
+	if err == redis.Nil {
+		return nil, search.ErrCachedResultNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

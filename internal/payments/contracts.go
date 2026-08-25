@@ -2,6 +2,10 @@ package payments
 
 import "context"
 
-type Service interface {
-	Pay(ctx context.Context, userID *int, orderID int, guestPaymentToken string) (*PayOutput, error)
+type Transaction interface {
+	Create(ctx context.Context, record Record) (int, error)
+}
+
+type Provider interface {
+	Process(ctx context.Context) (bool, error)
 }

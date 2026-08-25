@@ -142,9 +142,39 @@ var (
 		Status:  http.StatusUnprocessableEntity,
 	}
 
+	ErrDocumentRejected = &APIError{
+		Code:    "document_rejected",
+		Message: "Документ не прошёл проверку",
+		Status:  http.StatusUnprocessableEntity,
+	}
+
+	ErrDocumentExpired = &APIError{
+		Code:    "document_expired",
+		Message: "Срок действия документа истёк к дате поездки",
+		Status:  http.StatusUnprocessableEntity,
+	}
+
+	ErrDocumentAlreadyExists = &APIError{
+		Code:    "document_already_exists",
+		Message: "Такой документ уже сохранён",
+		Status:  http.StatusConflict,
+	}
+
 	ErrPassengerCountMismatch = &APIError{
 		Code:    "passenger_count_mismatch",
 		Message: "Количество пассажиров не совпадает с параметрами поиска",
+		Status:  http.StatusConflict,
+	}
+
+	ErrOrderExpired = &APIError{
+		Code:    "order_expired",
+		Message: "Срок оплаты заказа истёк",
+		Status:  http.StatusConflict,
+	}
+
+	ErrInsufficientBonus = &APIError{
+		Code:    "insufficient_bonus",
+		Message: "Недостаточно бонусов для оплаты заказа",
 		Status:  http.StatusConflict,
 	}
 )

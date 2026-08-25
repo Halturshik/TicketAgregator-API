@@ -2,10 +2,10 @@ package repository
 
 import "context"
 
-func (s *Repository) UpdatePassword(ctx context.Context, userID int, hash string) (int, error) {
+func (r *Repository) UpdatePassword(ctx context.Context, userID int, hash string) (int, error) {
 	var newVersion int
 
-	err := s.DB.QueryRowContext(ctx,
+	err := r.DB.QueryRowContext(ctx,
 		`UPDATE users 
 		 SET password_hash = $1,
 		     token_version = token_version + 1

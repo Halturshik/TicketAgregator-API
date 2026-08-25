@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -24,6 +25,9 @@ func (r *Repository) UpdateProfile(ctx context.Context, userID int, in users.Upd
 		RETURNING id, email, first_name, COALESCE(middle_name, ''), last_name, birth_date, is_russian, bonus_points
 	`, in.FirstName, in.MiddleName, in.LastName, birthDate, in.IsRussian, userID).
 		Scan(&p.ID, &p.Email, &p.FirstName, &p.MiddleName, &p.LastName, &storedBirthDate, &p.IsRussian, &p.BonusPoints)
+	if err == sql.ErrNoRows {
+		return nil, users.ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("update user profile: %w", err)
 	}

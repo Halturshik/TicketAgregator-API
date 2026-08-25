@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 )
 
-func (s *Repository) GetUserByEmail(ctx context.Context, email string) (*UserAuth, error) {
-	var u UserAuth
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*auth.UserAuth, error) {
+	var u auth.UserAuth
 
-	err := s.DB.QueryRowContext(ctx,
+	err := r.DB.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, token_version
 		 FROM users WHERE email = $1`,
 		email,
@@ -21,7 +23,7 @@ func (s *Repository) GetUserByEmail(ctx context.Context, email string) (*UserAut
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, ErrUserNotFound
+		return nil, auth.ErrUserNotFound
 	}
 
 	if err != nil {

@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 )
 
-func (s *Repository) GetUserByID(ctx context.Context, id int) (*UserAuth, error) {
-	var u UserAuth
+func (r *Repository) GetUserByID(ctx context.Context, id int) (*auth.UserAuth, error) {
+	var u auth.UserAuth
 
-	err := s.DB.QueryRowContext(ctx,
+	err := r.DB.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, token_version
 		 FROM users WHERE id = $1`,
 		id,
@@ -21,7 +23,7 @@ func (s *Repository) GetUserByID(ctx context.Context, id int) (*UserAuth, error)
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, ErrUserNotFound
+		return nil, auth.ErrUserNotFound
 	}
 
 	if err != nil {

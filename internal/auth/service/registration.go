@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
@@ -102,7 +102,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		return nil, err
 	}
 
-	dbParams := repository.CreateUserParams{
+	dbParams := auth.CreateUserParams{
 		FirstName:    stored.FirstName,
 		MiddleName:   stored.MiddleName,
 		LastName:     stored.LastName,
@@ -114,7 +114,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 
 	userID, err := s.store.CreateUser(ctx, dbParams)
 	if err != nil {
-		if err == repository.ErrDuplicateEmail {
+		if errors.Is(err, auth.ErrDuplicateEmail) {
 			return nil, apierror.ErrEmailIsUsed
 		}
 		logger.Error("Ошибка при создании пользователя %s: %v", in.Email, err)

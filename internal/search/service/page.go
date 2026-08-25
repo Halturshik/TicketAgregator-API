@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
-	"github.com/redis/go-redis/v9"
 )
 
 func (s *Service) GetPage(ctx context.Context, searchID string, offset int, limit int, userID *int) (*search.SearchResult, error) {
@@ -15,7 +15,7 @@ func (s *Service) GetPage(ctx context.Context, searchID string, offset int, limi
 		limit = DefaultPageSize
 	}
 	result, err := s.store.Get(ctx, searchID)
-	if err == redis.Nil {
+	if errors.Is(err, search.ErrCachedResultNotFound) {
 		return nil, apierror.ErrNotFound
 	}
 	if err != nil {
@@ -29,14 +29,11 @@ func (s *Service) page(result *search.CachedResult, offset int, limit int, userI
 	if offset < 0 {
 		offset = 0
 	}
-	end := offset + limit
 	if offset > len(result.Items) {
 		offset = len(result.Items)
 	}
-	if end > len(result.Items) {
-		end = len(result.Items)
-	}
-	items := append([]search.Offer(nil), result.Items[offset:end]...)
+	end := offset + min(limit, len(result.Items)-offset)
+	items := append([]search.TripOption(nil), result.Items[offset:end]...)
 	for i := range items {
 		items[i].BonusHint = ""
 		if userID == nil {

@@ -1,0 +1,59 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/Halturshik/TicketAgregator-API/internal/bonus"
+)
+
+func (t *transaction) Spend(ctx context.Context, userID int, orderID int, amount int) error {
+	var updatedBalance int
+	err := t.tx.QueryRowContext(ctx, `
+		UPDATE users
+		SET bonus_points = bonus_points - $1
+		WHERE id = $2 AND bonus_points >= $1
+		RETURNING bonus_points
+	`, amount, userID).Scan(&updatedBalance)
+	if err == sql.ErrNoRows {
+		return bonus.ErrInsufficientBalance
+	}
+	if err != nil {
+		return fmt.Errorf("spend bonuses: %w", err)
+	}
+	return t.recordBonusTransaction(ctx, userID, orderID, bonus.TransactionTypeSpend, amount)
+}
+
+func (t *transaction) Earn(ctx context.Context, userID int, orderID int, amount int) error {
+	result, err := t.tx.ExecContext(ctx, `UPDATE users SET bonus_points = bonus_points + $1 WHERE id = $2`, amount, userID)
+	if err != nil {
+		return fmt.Errorf("earn bonuses: %w", err)
+	}
+	if err := requireAffectedRows(result, 1); err != nil {
+		return fmt.Errorf("earn bonuses: %w", err)
+	}
+	return t.recordBonusTransaction(ctx, userID, orderID, bonus.TransactionTypeEarn, amount)
+}
+
+func (t *transaction) recordBonusTransaction(ctx context.Context, userID int, orderID int, transactionType string, amount int) error {
+	result, err := t.tx.ExecContext(ctx, `
+		INSERT INTO bonus_transactions (user_id, order_id, type, amount)
+		VALUES ($1, $2, $3, $4)
+	`, userID, orderID, transactionType, amount)
+	if err != nil {
+		return fmt.Errorf("record %s bonuses: %w", transactionType, err)
+	}
+	if err := requireAffectedRows(result, 1); err != nil {
+		return fmt.Errorf("record %s bonuses: %w", transactionType, err)
+	}
+	return nil
+}
+
+func (t *transaction) GetBalance(ctx context.Context, userID int) (int, error) {
+	var balance int
+	if err := t.tx.QueryRowContext(ctx, `SELECT bonus_points FROM users WHERE id = $1`, userID).Scan(&balance); err != nil {
+		return 0, fmt.Errorf("get bonus balance after payment: %w", err)
+	}
+	return balance, nil
+}

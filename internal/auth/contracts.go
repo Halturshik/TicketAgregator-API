@@ -1,12 +1,8 @@
 package auth
 
-import (
-	"context"
+import "context"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
-)
-
-type AuthService interface {
+type Service interface {
 	StartRegistration(ctx context.Context, in RegisterInput) error
 	ConfirmRegistration(ctx context.Context, in ConfirmRegisterInput) (*LoginOutput, error)
 
@@ -22,11 +18,16 @@ type AuthService interface {
 }
 
 type UserStore interface {
+	UserReader
+
 	IsEmailExists(ctx context.Context, email string) (bool, error)
-	CreateUser(ctx context.Context, u repository.CreateUserParams) (int64, error)
-	GetUserByEmail(ctx context.Context, email string) (*repository.UserAuth, error)
-	GetUserByID(ctx context.Context, id int) (*repository.UserAuth, error)
+	CreateUser(ctx context.Context, u CreateUserParams) (int64, error)
+	GetUserByEmail(ctx context.Context, email string) (*UserAuth, error)
 	UpdatePassword(ctx context.Context, userID int, hash string) (int, error)
+}
+
+type UserReader interface {
+	GetUserByID(ctx context.Context, id int) (*UserAuth, error)
 }
 
 type Mailer interface {
@@ -52,7 +53,7 @@ type CodeStore interface {
 
 type RefreshStore interface {
 	Save(ctx context.Context, userID int64, token string) error
-	Get(ctx context.Context, token string) (int64, error)
+	Rotate(ctx context.Context, userID int64, oldToken string, newToken string) error
 	Delete(ctx context.Context, token string) error
 	AddToUserSet(ctx context.Context, userID int64, tokenHash string) error
 	RemoveFromUserSet(ctx context.Context, userID int64, tokenHash string) error
@@ -62,13 +63,23 @@ type RefreshStore interface {
 type ResetPasswordStore interface {
 	SaveVerified(ctx context.Context, email string) error
 	IsVerified(ctx context.Context, email string) (bool, error)
-	Delete(ctx context.Context, email string) error
+	ConsumeVerified(ctx context.Context, email string) (bool, error)
 }
 
 type TokenManager interface {
+	AccessTokenParser
+	RefreshTokenParser
+
 	GenerateAccessToken(userID int, version int) (string, error)
 	GenerateRefreshToken(userID int, version int) (string, error)
-	ParseToken(tokenStr string) (int, int, error)
+}
+
+type AccessTokenParser interface {
+	ParseAccessToken(tokenStr string) (int, int, error)
+}
+
+type RefreshTokenParser interface {
+	ParseRefreshToken(tokenStr string) (int, int, error)
 }
 
 type CodeGenerator interface {

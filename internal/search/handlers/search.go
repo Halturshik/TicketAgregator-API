@@ -8,18 +8,19 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/httpx"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
+	"github.com/Halturshik/TicketAgregator-API/internal/transport"
 )
 
 func (h *Handler) SearchAir(w http.ResponseWriter, r *http.Request) error {
-	return h.search(w, r, "avia")
+	return h.search(w, r, transport.Avia)
 }
 
 func (h *Handler) SearchRailway(w http.ResponseWriter, r *http.Request) error {
-	return h.search(w, r, "rail")
+	return h.search(w, r, transport.Rail)
 }
 
 func (h *Handler) SearchBus(w http.ResponseWriter, r *http.Request) error {
-	return h.search(w, r, "bus")
+	return h.search(w, r, transport.Bus)
 }
 
 func (h *Handler) search(w http.ResponseWriter, r *http.Request, transport string) error {

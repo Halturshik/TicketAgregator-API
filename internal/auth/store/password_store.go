@@ -40,11 +40,19 @@ func (s *ResetPasswordStore) IsVerified(ctx context.Context, email string) (bool
 	return exists == 1, nil
 }
 
-func (s *ResetPasswordStore) Delete(ctx context.Context, email string) error {
-	if err := s.redis.Del(ctx, s.key(email)).Err(); err != nil {
-		logger.Error("Ошибка при удалении подтверждения верификации из redis для %s: %v", email, err)
-		return err
-	}
+var consumeResetVerification = redis.NewScript(`
+if redis.call("EXISTS", KEYS[1]) == 0 then
+    return 0
+end
+redis.call("DEL", KEYS[1])
+return 1
+`)
 
-	return nil
+func (s *ResetPasswordStore) ConsumeVerified(ctx context.Context, email string) (bool, error) {
+	consumed, err := consumeResetVerification.Run(ctx, s.redis, []string{s.key(email)}).Int()
+	if err != nil {
+		logger.Error("Ошибка использования подтверждения восстановления пароля для %s: %v", email, err)
+		return false, err
+	}
+	return consumed == 1, nil
 }

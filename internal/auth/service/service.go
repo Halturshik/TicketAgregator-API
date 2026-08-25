@@ -1,8 +1,6 @@
 package service
 
-import (
-	"github.com/Halturshik/TicketAgregator-API/internal/auth"
-)
+import "github.com/Halturshik/TicketAgregator-API/internal/auth"
 
 type Service struct {
 	store              auth.UserStore
@@ -26,8 +24,7 @@ func NewService(
 	refreshStore auth.RefreshStore,
 	resetPasswordStore auth.ResetPasswordStore,
 	jwt auth.TokenManager,
-) auth.AuthService {
-
+) auth.Service {
 	return &Service{
 		store:              userStore,
 		mailer:             mailer,

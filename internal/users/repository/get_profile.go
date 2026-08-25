@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -17,6 +18,9 @@ func (r *Repository) GetProfile(ctx context.Context, userID int) (*users.Profile
 		FROM users
 		WHERE id = $1
 	`, userID).Scan(&p.ID, &p.Email, &p.FirstName, &p.MiddleName, &p.LastName, &birthDate, &p.IsRussian, &p.BonusPoints)
+	if err == sql.ErrNoRows {
+		return nil, users.ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get user profile: %w", err)
 	}

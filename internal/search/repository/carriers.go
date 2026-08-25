@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
+
+	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
 
-func (r *Repository) ListCarriers(ctx context.Context) ([]Carrier, error) {
+func (r *Repository) ListCarriers(ctx context.Context) ([]search.CarrierConfig, error) {
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT id, name, code, transport_type
 		FROM carriers
@@ -16,13 +18,16 @@ func (r *Repository) ListCarriers(ctx context.Context) ([]Carrier, error) {
 	}
 	defer rows.Close()
 
-	result := make([]Carrier, 0)
+	result := make([]search.CarrierConfig, 0)
 	for rows.Next() {
-		var c Carrier
-		if err := rows.Scan(&c.ID, &c.Name, &c.Code, &c.TransportType); err != nil {
+		var carrier search.CarrierConfig
+		if err := rows.Scan(&carrier.ID, &carrier.Name, &carrier.Code, &carrier.TransportType); err != nil {
 			return nil, fmt.Errorf("scan carrier: %w", err)
 		}
-		result = append(result, c)
+		result = append(result, carrier)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate carriers: %w", err)
+	}
+	return result, nil
 }

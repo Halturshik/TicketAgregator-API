@@ -9,16 +9,19 @@ import (
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/app"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/code"
+	authcode "github.com/Halturshik/TicketAgregator-API/internal/auth/code"
 	authhandlers "github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
+	authmiddleware "github.com/Halturshik/TicketAgregator-API/internal/auth/middleware"
 	authrepo "github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	authservice "github.com/Halturshik/TicketAgregator-API/internal/auth/service"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/store"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
+	authstore "github.com/Halturshik/TicketAgregator-API/internal/auth/store"
+	authtoken "github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	bonushandlers "github.com/Halturshik/TicketAgregator-API/internal/bonus/handlers"
 	bonusrepo "github.com/Halturshik/TicketAgregator-API/internal/bonus/repository"
 	bonusservice "github.com/Halturshik/TicketAgregator-API/internal/bonus/service"
+	checkouthandlers "github.com/Halturshik/TicketAgregator-API/internal/checkout/handlers"
+	checkoutrepo "github.com/Halturshik/TicketAgregator-API/internal/checkout/repository"
+	checkoutservice "github.com/Halturshik/TicketAgregator-API/internal/checkout/service"
 	documenthandlers "github.com/Halturshik/TicketAgregator-API/internal/documents/handlers"
 	documentrepo "github.com/Halturshik/TicketAgregator-API/internal/documents/repository"
 	documentservice "github.com/Halturshik/TicketAgregator-API/internal/documents/service"
@@ -28,9 +31,7 @@ import (
 	passengerhandlers "github.com/Halturshik/TicketAgregator-API/internal/passengers/handlers"
 	passengerrepo "github.com/Halturshik/TicketAgregator-API/internal/passengers/repository"
 	passengerservice "github.com/Halturshik/TicketAgregator-API/internal/passengers/service"
-	paymenthandlers "github.com/Halturshik/TicketAgregator-API/internal/payments/handlers"
-	paymentrepo "github.com/Halturshik/TicketAgregator-API/internal/payments/repository"
-	paymentservice "github.com/Halturshik/TicketAgregator-API/internal/payments/service"
+	paymentprovider "github.com/Halturshik/TicketAgregator-API/internal/payments/provider"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
@@ -71,19 +72,19 @@ func main() {
 
 	infraStore := postgres.NewStore(dbConnection)
 	authRepo := authrepo.NewRepository(infraStore.DB)
-	jwtService := token.NewJWTService(cfg.JWTSecret)
+	jwtService := authtoken.NewJWTService(cfg.JWTSecret)
 
-	mailer := &mailer.ConsoleMailer{}
-	codeGenerator := &code.RandomCodeGenerator{}
-	codeStore := store.NewCodeService(redisClient)
-	registrationStore := store.NewRegistrationStore(redisClient)
-	loginStore := store.NewLoginStore(redisClient)
-	refreshStore := store.NewRefreshStore(redisClient)
-	resetPasswordStore := store.NewResetStore(redisClient)
+	emailMailer := &mailer.ConsoleMailer{}
+	codeGenerator := &authcode.RandomCodeGenerator{}
+	codeStore := authstore.NewCodeService(redisClient)
+	registrationStore := authstore.NewRegistrationStore(redisClient)
+	loginStore := authstore.NewLoginStore(redisClient)
+	refreshStore := authstore.NewRefreshStore(redisClient)
+	resetPasswordStore := authstore.NewResetStore(redisClient)
 
 	authService := authservice.NewService(
 		authRepo,
-		mailer,
+		emailMailer,
 		codeGenerator,
 		codeStore,
 		registrationStore,
@@ -94,24 +95,45 @@ func main() {
 	)
 
 	authHandler := authhandlers.New(authService)
-	authMiddleware := auth.NewAuthMiddleware(authRepo, jwtService)
+	authMiddleware := authmiddleware.New(authRepo, jwtService)
 
 	userHandler := userhandlers.New(userservice.NewService(userrepo.NewRepository(infraStore.DB)))
-	passengerHandler := passengerhandlers.New(passengerservice.NewService(passengerrepo.NewRepository(infraStore.DB)))
-	documentSvc := documentservice.NewService(documentrepo.NewRepository(infraStore.DB))
+	passengerSvc := passengerservice.NewService(passengerrepo.NewRepository(infraStore.DB))
+	passengerHandler := passengerhandlers.New(passengerSvc)
+	documentSvc := documentservice.NewService(
+		documentrepo.NewRepository(infraStore.DB),
+		cfg.DocumentVerificationSecret,
+	)
 	documentHandler := documenthandlers.New(documentSvc)
 
-	searchSvc := searchservice.NewService(
-		searchrepo.NewRepository(infraStore.DB),
-		searchstore.New(redisClient),
-	)
+	searchRepository := searchrepo.NewRepository(infraStore.DB)
+	bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	carriers, err := searchRepository.ListCarriers(bootstrapCtx)
+	bootstrapCancel()
+	if err != nil {
+		logger.Error("Ошибка загрузки перевозчиков: %v", err)
+		return
+	}
+	searchSvc, err := searchservice.NewService(searchRepository, searchstore.New(redisClient), carriers)
+	if err != nil {
+		logger.Error("Ошибка инициализации поиска: %v", err)
+		return
+	}
 	searchHandler := searchhandlers.New(searchSvc)
 
-	orderSvc := orderservice.NewService(orderrepo.NewRepository(infraStore.DB), searchSvc, documentSvc)
+	bonusRepository := bonusrepo.NewRepository(infraStore.DB)
+	orderSvc := orderservice.NewService(
+		orderrepo.NewRepository(infraStore.DB), searchSvc, documentSvc, passengerSvc, bonusRepository,
+	)
 	orderHandler := orderhandlers.New(orderSvc)
 
-	paymentHandler := paymenthandlers.New(paymentservice.NewService(paymentrepo.NewRepository(infraStore.DB)))
-	bonusHandler := bonushandlers.New(bonusservice.NewService(bonusrepo.NewRepository(infraStore.DB)))
+	checkoutSvc := checkoutservice.NewService(
+		checkoutrepo.NewRepository(infraStore.DB),
+		paymentprovider.NewMock(),
+		passengerSvc,
+	)
+	checkoutHandler := checkouthandlers.New(checkoutSvc)
+	bonusHandler := bonushandlers.New(bonusservice.NewService(bonusRepository))
 
 	apiServer := app.NewAPI(
 		authHandler,
@@ -120,7 +142,7 @@ func main() {
 		documentHandler,
 		searchHandler,
 		orderHandler,
-		paymentHandler,
+		checkoutHandler,
 		bonusHandler,
 		authMiddleware,
 	)

@@ -10,26 +10,26 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/common/httpx"
 )
 
-func (h *Handler) RegisterHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) error {
 	var req auth.RegisterInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return apierror.ErrInvalidJSON
 	}
 
-	if err := h.AuthService.StartRegistration(r.Context(), req); err != nil {
+	if err := h.service.StartRegistration(r.Context(), req); err != nil {
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
 	return httpx.WriteJSON(w, http.StatusOK, map[string]any{"message": fmt.Sprintf("Код подтверждения отправлен на адрес электронной почты: %s", req.Email)})
 }
 
-func (h *Handler) ConfirmRegistrationHandler(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) ConfirmRegistration(w http.ResponseWriter, r *http.Request) error {
 	var req auth.ConfirmRegisterInput
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return apierror.ErrInvalidJSON
 	}
 
-	tokens, err := h.AuthService.ConfirmRegistration(r.Context(), req)
+	tokens, err := h.service.ConfirmRegistration(r.Context(), req)
 	if err != nil {
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
-	"github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
@@ -99,7 +98,7 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 
 	user, err := s.store.GetUserByEmail(ctx, in.Email)
 	if err != nil {
-		if errors.Is(err, repository.ErrUserNotFound) {
+		if errors.Is(err, auth.ErrUserNotFound) {
 			return nil, apierror.ErrInvalidCredentials
 		}
 		logger.Error("Ошибка при получении пользователя по email %s: %v", in.Email, err)
@@ -114,6 +113,15 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	if err != nil {
 		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return nil, err
+	}
+
+	consumed, err := s.resetPasswordStore.ConsumeVerified(ctx, in.Email)
+	if err != nil {
+		return nil, err
+	}
+	if !consumed {
+		logger.Warn("Повторная попытка использовать подтверждение смены пароля для email: %s", in.Email)
+		return nil, apierror.ErrUnauthorized
 	}
 
 	newVersion, err := s.store.UpdatePassword(ctx, user.ID, hashPassword)
@@ -146,9 +154,6 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	hashToken := token.HashToken(refreshToken)
 
 	if err := s.refreshStore.AddToUserSet(ctx, int64(user.ID), hashToken); err != nil {
-	}
-
-	if err := s.resetPasswordStore.Delete(ctx, in.Email); err != nil {
 	}
 
 	return &auth.LoginOutput{

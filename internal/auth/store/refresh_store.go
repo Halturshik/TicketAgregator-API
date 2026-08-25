@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
-	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
@@ -26,22 +25,6 @@ func (s *RefreshStore) Save(ctx context.Context, userID int64, refreshToken stri
 	}
 
 	return nil
-}
-
-func (s *RefreshStore) Get(ctx context.Context, refreshToken string) (int64, error) {
-	hash := token.HashToken(refreshToken)
-	key := RefreshKey(hash)
-	val, err := s.redis.Get(ctx, key).Int64()
-	if err == redis.Nil {
-		return 0, apierror.ErrInvalidToken
-	}
-
-	if err != nil {
-		logger.Error("Ошибка при получении refresh-токена: %v", err)
-		return 0, err
-	}
-
-	return val, nil
 }
 
 func (s *RefreshStore) Delete(ctx context.Context, refreshToken string) error {

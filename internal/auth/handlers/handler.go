@@ -3,11 +3,9 @@ package handlers
 import "github.com/Halturshik/TicketAgregator-API/internal/auth"
 
 type Handler struct {
-	AuthService auth.AuthService
+	service auth.Service
 }
 
-func New(authService auth.AuthService) *Handler {
-	return &Handler{
-		AuthService: authService,
-	}
+func New(service auth.Service) *Handler {
+	return &Handler{service: service}
 }

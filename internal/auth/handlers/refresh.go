@@ -14,7 +14,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) error {
 		return apierror.ErrUnauthorized
 	}
 
-	tokens, err := h.AuthService.Refresh(r.Context(), refreshToken)
+	tokens, err := h.service.Refresh(r.Context(), refreshToken)
 	if err != nil {
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}

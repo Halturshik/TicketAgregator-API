@@ -1,11 +1,10 @@
 package number
 
 import (
-	"crypto/rand"
 	"fmt"
-)
 
-const maxAttempts = 20
+	transportpkg "github.com/Halturshik/TicketAgregator-API/internal/transport"
+)
 
 type Series struct {
 	transport string
@@ -17,12 +16,14 @@ func NewSeries(transport string) (*Series, error) {
 	series := &Series{transport: transport, issued: make(map[string]struct{})}
 	var err error
 	switch transport {
-	case "rail":
-		series.prefix, err = randomDigitLetterDigit()
-	case "bus":
-		series.prefix, err = randomDigitLetter()
-	default:
+	case transportpkg.Avia:
 		series.prefix, err = randomAirPrefix()
+	case transportpkg.Rail:
+		series.prefix, err = randomRailPrefix()
+	case transportpkg.Bus:
+		series.prefix, err = randomBusSuffix()
+	default:
+		return nil, fmt.Errorf("unsupported transport %q", transport)
 	}
 	if err != nil {
 		return nil, err
@@ -47,94 +48,14 @@ func (s *Series) Next() (string, error) {
 
 func (s *Series) next() (string, error) {
 	switch s.transport {
-	case "rail":
+	case transportpkg.Rail:
 		tail, err := randomRailTail()
 		return s.prefix + tail, err
-	case "bus":
-		head, err := randomDigits(5)
+	case transportpkg.Bus:
+		head, err := randomDigits(busHeadDigits)
 		return head + s.prefix, err
 	default:
-		tail, err := randomDigits(5)
+		tail, err := randomDigits(airTailDigits)
 		return s.prefix + tail, err
 	}
-}
-
-func randomAirPrefix() (string, error) {
-	letters, err := randomLetters(2)
-	if err != nil {
-		return "", err
-	}
-	digits, err := randomDigits(3)
-	if err != nil {
-		return "", err
-	}
-	return letters + "-" + digits, nil
-}
-
-func randomDigitLetterDigit() (string, error) {
-	first, err := randomDigits(1)
-	if err != nil {
-		return "", err
-	}
-	letter, err := randomLetters(1)
-	if err != nil {
-		return "", err
-	}
-	last, err := randomDigits(1)
-	if err != nil {
-		return "", err
-	}
-	return first + letter + last, nil
-}
-
-func randomRailTail() (string, error) {
-	digits, err := randomDigits(2)
-	if err != nil {
-		return "", err
-	}
-	firstLetter, err := randomLetters(1)
-	if err != nil {
-		return "", err
-	}
-	digit, err := randomDigits(1)
-	if err != nil {
-		return "", err
-	}
-	lastLetter, err := randomLetters(1)
-	if err != nil {
-		return "", err
-	}
-	return digits + firstLetter + digit + lastLetter, nil
-}
-
-func randomDigitLetter() (string, error) {
-	digit, err := randomDigits(1)
-	if err != nil {
-		return "", err
-	}
-	letter, err := randomLetters(1)
-	if err != nil {
-		return "", err
-	}
-	return digit + letter, nil
-}
-
-func randomDigits(length int) (string, error) {
-	return randomCharacters(length, '0', 10)
-}
-
-func randomLetters(length int) (string, error) {
-	return randomCharacters(length, 'A', 26)
-}
-
-func randomCharacters(length int, first byte, alphabetSize byte) (string, error) {
-	value := make([]byte, length)
-	for index := range value {
-		var source [1]byte
-		if _, err := rand.Read(source[:]); err != nil {
-			return "", err
-		}
-		value[index] = first + source[0]%alphabetSize
-	}
-	return string(value), nil
 }
