@@ -4,28 +4,37 @@ import (
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
-	"github.com/Halturshik/TicketAgregator-API/internal/search/provider"
+	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo      search.Repository
-	store     search.Store
-	providers map[string]provider.Provider
-	now       func() time.Time
-	newID     func() string
+	repo          search.Repository
+	store         search.Store
+	supplier      supplier.Gateway
+	providerCodes []string
+	carriers      []search.CarrierConfig
+	now           func() time.Time
+	newID         func() string
 }
 
-func NewService(repo search.Repository, store search.Store, carriers []search.CarrierConfig) (search.Service, error) {
-	providers, err := newProviders(carriers)
-	if err != nil {
-		return nil, err
+func NewService(
+	repo search.Repository,
+	store search.Store,
+	supplierGateway supplier.Gateway,
+	providerCodes []string,
+	carriers []search.CarrierConfig,
+) (search.Service, error) {
+	if supplierGateway == nil || !validProviderCodes(providerCodes) || !validCarrierConfiguration(carriers) {
+		return nil, search.ErrInvalidSupplierConfiguration
 	}
 	return &Service{
-		repo:      repo,
-		store:     store,
-		providers: providers,
-		now:       time.Now,
-		newID:     uuid.NewString,
+		repo:          repo,
+		store:         store,
+		supplier:      supplierGateway,
+		providerCodes: append([]string(nil), providerCodes...),
+		carriers:      append([]search.CarrierConfig(nil), carriers...),
+		now:           time.Now,
+		newID:         uuid.NewString,
 	}, nil
 }

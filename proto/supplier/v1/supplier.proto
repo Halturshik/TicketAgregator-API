@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+option go_package = "github.com/Halturshik/TicketAgregator-API/internal/gen/supplier/v1;supplierv1";
+
+service SupplierService {
+  rpc SearchOffers(SearchOffersRequest) returns (SearchOffersResponse);
+  rpc QuoteRefund(QuoteRefundRequest) returns (QuoteRefundResponse);
+  rpc ExecuteRefund(ExecuteRefundRequest) returns (ExecuteRefundResponse);
+}
+
+message SearchInput {
+  int32 from_id = 1;
+  int32 to_id = 2;
+  string date = 3;
+  string return_date = 4;
+  int32 passengers = 5;
+}
+
+message City {
+  int32 id = 1;
+  string name = 2;
+  int32 country_id = 3;
+  string country = 4;
+  bool is_russia = 5;
+  bool is_air_hub = 6;
+  double latitude = 7;
+  double longitude = 8;
+  repeated int32 neighbor_country_ids = 9;
+}
+
+message Carrier {
+  int32 id = 1;
+  string name = 2;
+  string code = 3;
+  string transport = 4;
+}
+
+message SearchOffersRequest {
+  string provider_code = 1;
+  string transport = 2;
+  SearchInput input = 3;
+  City from = 4;
+  City to = 5;
+  repeated City cities = 6;
+  repeated Carrier carriers = 7;
+  int32 count = 8;
+  int64 seed = 9;
+}
+
+message RefundTier {
+  int32 min_hours_before_departure = 1;
+  int32 refund_percent = 2;
+}
+
+message RefundPolicy {
+  string code = 1;
+  bool refundable = 2;
+  repeated RefundTier tiers = 3;
+}
+
+message Segment {
+  int32 order = 1;
+  int32 from_city_id = 2;
+  int32 to_city_id = 3;
+  string from_city = 4;
+  string to_city = 5;
+  string departure_time = 6;
+  string arrival_time = 7;
+  int32 carrier_id = 8;
+  string carrier = 9;
+  string carrier_code = 10;
+  string route_number = 11;
+}
+
+message Offer {
+  string id = 1;
+  string transport = 2;
+  bool is_international = 3;
+  int32 price = 4;
+  int32 price_per_passenger = 5;
+  int32 transfer_count = 6;
+  int32 duration_minutes = 7;
+  repeated Segment segments = 8;
+}
+
+message TripOption {
+  string id = 1;
+  string schedule_id = 2;
+  string supplier_code = 3;
+  string supplier_offer_id = 4;
+  string fare_type = 5;
+  RefundPolicy refund_policy = 6;
+  string transport = 7;
+  int32 price = 8;
+  int32 price_per_passenger = 9;
+  Offer outbound = 10;
+  Offer return = 11;
+}
+
+message SearchOffersResponse {
+  repeated TripOption items = 1;
+}
+
+message RefundQuoteItem {
+  int32 ticket_id = 1;
+  string supplier_offer_id = 2;
+  string fare_type = 3;
+  int64 departure_unix = 4;
+  int32 gross_amount = 5;
+}
+
+message QuoteRefundRequest {
+  string provider_code = 1;
+  repeated RefundQuoteItem items = 2;
+}
+
+message RefundQuoteItemResult {
+  int32 ticket_id = 1;
+  bool eligible = 2;
+  string reason = 3;
+  int32 refund_percent = 4;
+  int32 gross_refund_amount = 5;
+  RefundPolicy policy = 6;
+}
+
+message QuoteRefundResponse {
+  repeated RefundQuoteItemResult items = 1;
+}
+
+message ExecuteRefundItem {
+  int32 ticket_id = 1;
+  string ticket_number = 2;
+  string supplier_offer_id = 3;
+  string fare_type = 4;
+  int64 departure_unix = 5;
+  int32 gross_amount = 6;
+}
+
+message ExecuteRefundRequest {
+  string provider_code = 1;
+  string idempotency_key = 2;
+  repeated ExecuteRefundItem items = 3;
+}
+
+message ExecuteRefundItemResult {
+  int32 ticket_id = 1;
+  bool refunded = 2;
+  string reason = 3;
+  int32 refund_percent = 4;
+  int32 refund_amount = 5;
+  RefundPolicy policy = 6;
+}
+
+message ExecuteRefundResponse {
+  string supplier_refund_id = 1;
+  string status = 2;
+  string failure_code = 3;
+  repeated ExecuteRefundItemResult items = 4;
+}

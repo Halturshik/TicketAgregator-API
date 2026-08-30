@@ -1,5 +1,7 @@
 package orders
 
+import "github.com/Halturshik/TicketAgregator-API/internal/fare"
+
 type Order struct {
 	ID                int      `json:"id"`
 	UserID            *int     `json:"user_id,omitempty"`
@@ -15,13 +17,21 @@ type Order struct {
 }
 
 type Ticket struct {
-	ID              int                     `json:"id"`
-	TicketNumber    string                  `json:"ticket_number"`
-	Transport       string                  `json:"transport"`
-	IsInternational bool                    `json:"is_international"`
-	Price           int                     `json:"price"`
-	Status          string                  `json:"status"`
-	Passenger       PassengerSnapshot       `json:"passenger"`
-	Document        DocumentSnapshot        `json:"document"`
-	Segments        []TicketSegmentSnapshot `json:"segments"`
+	ID                  int                     `json:"id"`
+	TicketNumber        string                  `json:"ticket_number"`
+	SupplierCode        string                  `json:"supplier_code"`
+	SupplierOfferID     string                  `json:"supplier_offer_id"`
+	FareType            string                  `json:"fare_type"`
+	RefundPolicy        fare.RefundPolicy       `json:"refund_policy"`
+	RefundPolicyVersion int                     `json:"refund_policy_version"`
+	Transport           string                  `json:"transport"`
+	IsInternational     bool                    `json:"is_international"`
+	Price               int                     `json:"price"`
+	BonusSpent          int                     `json:"bonus_spent"`
+	BonusEarned         int                     `json:"bonus_earned"`
+	PayableAmount       int                     `json:"payable_amount"`
+	Status              string                  `json:"status"`
+	Passenger           PassengerSnapshot       `json:"passenger"`
+	Document            DocumentSnapshot        `json:"document"`
+	Segments            []TicketSegmentSnapshot `json:"segments"`
 }

@@ -37,10 +37,15 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/postgres"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/redis"
+	refundhandlers "github.com/Halturshik/TicketAgregator-API/internal/refunds/handlers"
+	refundrepo "github.com/Halturshik/TicketAgregator-API/internal/refunds/repository"
+	refundservice "github.com/Halturshik/TicketAgregator-API/internal/refunds/service"
 	searchhandlers "github.com/Halturshik/TicketAgregator-API/internal/search/handlers"
 	searchrepo "github.com/Halturshik/TicketAgregator-API/internal/search/repository"
 	searchservice "github.com/Halturshik/TicketAgregator-API/internal/search/service"
 	searchstore "github.com/Halturshik/TicketAgregator-API/internal/search/store"
+	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
+	suppliergrpc "github.com/Halturshik/TicketAgregator-API/internal/supplier/grpcclient"
 	userhandlers "github.com/Halturshik/TicketAgregator-API/internal/users/handlers"
 	userrepo "github.com/Halturshik/TicketAgregator-API/internal/users/repository"
 	userservice "github.com/Halturshik/TicketAgregator-API/internal/users/service"
@@ -114,7 +119,19 @@ func main() {
 		logger.Error("Ошибка загрузки перевозчиков: %v", err)
 		return
 	}
-	searchSvc, err := searchservice.NewService(searchRepository, searchstore.New(redisClient), carriers)
+	supplierClient, supplierConnection, err := suppliergrpc.Dial(cfg.SupplierGRPCAddress)
+	if err != nil {
+		logger.Error("Ошибка инициализации gRPC-клиента поставщиков: %v", err)
+		return
+	}
+	defer supplierConnection.Close()
+	searchSvc, err := searchservice.NewService(
+		searchRepository,
+		searchstore.New(redisClient),
+		supplierClient,
+		supplier.DefaultProviders,
+		carriers,
+	)
 	if err != nil {
 		logger.Error("Ошибка инициализации поиска: %v", err)
 		return
@@ -134,6 +151,14 @@ func main() {
 	)
 	checkoutHandler := checkouthandlers.New(checkoutSvc)
 	bonusHandler := bonushandlers.New(bonusservice.NewService(bonusRepository))
+	refundSvc := refundservice.NewService(
+		refundrepo.NewRepository(infraStore.DB),
+		supplierClient,
+	)
+	refundHandler := refundhandlers.New(refundSvc)
+	reconciliationCtx, stopReconciliation := context.WithCancel(context.Background())
+	defer stopReconciliation()
+	go runRefundReconciliation(reconciliationCtx, refundSvc)
 
 	apiServer := app.NewAPI(
 		authHandler,
@@ -144,6 +169,7 @@ func main() {
 		orderHandler,
 		checkoutHandler,
 		bonusHandler,
+		refundHandler,
 		authMiddleware,
 	)
 
@@ -168,6 +194,7 @@ func main() {
 
 	sig := <-stop
 	logger.Warn("Получен сигнал завершения: %v, останавливаю сервер...", sig)
+	stopReconciliation()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

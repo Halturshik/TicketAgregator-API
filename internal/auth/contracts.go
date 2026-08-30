@@ -35,8 +35,8 @@ type Mailer interface {
 }
 
 type RegistrationStore interface {
-	Save(ctx context.Context, email string, data RegisterInput) error
-	Get(ctx context.Context, email string) (*RegisterInput, error)
+	Save(ctx context.Context, email string, data PendingRegistration) error
+	Get(ctx context.Context, email string) (*PendingRegistration, error)
 	Delete(ctx context.Context, email string) error
 }
 

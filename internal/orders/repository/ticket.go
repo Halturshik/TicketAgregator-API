@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
@@ -38,13 +39,21 @@ func insertTicket(
 	draft orders.TicketDraft,
 	passenger orders.OrderPassengerDraft,
 ) (*orders.Ticket, error) {
+	policy, err := json.Marshal(draft.RefundPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("marshal refund policy: %w", err)
+	}
 	var ticketID int
-	err := tx.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		INSERT INTO tickets
-			(order_id, order_passenger_id, ticket_number, transport_type, is_international, price)
-		VALUES ($1, $2, $3, $4, $5, $6)
+			(order_id, order_passenger_id, ticket_number, supplier_code, supplier_offer_id,
+			 fare_type, refund_policy_version, refund_policy_snapshot,
+			 transport_type, is_international, price, bonus_spent, bonus_earned, payable_amount)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id
-	`, orderID, orderPassengerID, draft.TicketNumber, draft.Transport, draft.IsInternational, draft.Price).Scan(&ticketID)
+	`, orderID, orderPassengerID, draft.TicketNumber, draft.SupplierCode, draft.SupplierOfferID,
+		draft.FareType, draft.RefundPolicyVersion, policy, draft.Transport, draft.IsInternational,
+		draft.Price, draft.BonusSpent, draft.BonusEarned, draft.PayableAmount).Scan(&ticketID)
 	if err != nil {
 		return nil, fmt.Errorf("insert ticket: %w", err)
 	}
@@ -54,7 +63,11 @@ func insertTicket(
 
 	return &orders.Ticket{
 		ID: ticketID, TicketNumber: draft.TicketNumber, Transport: draft.Transport,
-		IsInternational: draft.IsInternational, Price: draft.Price, Status: orders.TicketStatusBooked,
+		SupplierCode: draft.SupplierCode, SupplierOfferID: draft.SupplierOfferID,
+		FareType: draft.FareType, RefundPolicy: draft.RefundPolicy, RefundPolicyVersion: draft.RefundPolicyVersion,
+		IsInternational: draft.IsInternational, Price: draft.Price,
+		BonusSpent: draft.BonusSpent, BonusEarned: draft.BonusEarned, PayableAmount: draft.PayableAmount,
+		Status:    orders.TicketStatusBooked,
 		Passenger: passenger.Passenger, Document: passenger.Document, Segments: draft.Segments,
 	}, nil
 }

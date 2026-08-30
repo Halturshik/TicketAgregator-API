@@ -7,7 +7,6 @@ import (
 )
 
 const (
-	WorkerLimit      = 4
 	ProbabilityScale = 100
 	RandomSeedStride = 7919
 

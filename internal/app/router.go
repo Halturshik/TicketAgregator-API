@@ -8,6 +8,7 @@ import (
 	documenthandlers "github.com/Halturshik/TicketAgregator-API/internal/documents/handlers"
 	orderhandlers "github.com/Halturshik/TicketAgregator-API/internal/orders/handlers"
 	passengerhandlers "github.com/Halturshik/TicketAgregator-API/internal/passengers/handlers"
+	refundhandlers "github.com/Halturshik/TicketAgregator-API/internal/refunds/handlers"
 	searchhandlers "github.com/Halturshik/TicketAgregator-API/internal/search/handlers"
 	userhandlers "github.com/Halturshik/TicketAgregator-API/internal/users/handlers"
 	"github.com/go-chi/chi/v5"
@@ -22,6 +23,7 @@ type API struct {
 	OrderHandler     *orderhandlers.Handler
 	CheckoutHandler  *checkouthandlers.Handler
 	BonusHandler     *bonushandlers.Handler
+	RefundHandler    *refundhandlers.Handler
 	AuthMiddleware   *authmiddleware.Middleware
 }
 
@@ -34,6 +36,7 @@ func NewAPI(
 	orderHandler *orderhandlers.Handler,
 	checkoutHandler *checkouthandlers.Handler,
 	bonusHandler *bonushandlers.Handler,
+	refundHandler *refundhandlers.Handler,
 	authMiddleware *authmiddleware.Middleware,
 ) *API {
 	return &API{
@@ -45,6 +48,7 @@ func NewAPI(
 		OrderHandler:     orderHandler,
 		CheckoutHandler:  checkoutHandler,
 		BonusHandler:     bonusHandler,
+		RefundHandler:    refundHandler,
 		AuthMiddleware:   authMiddleware,
 	}
 }
@@ -100,6 +104,8 @@ func (api *API) Init(r *chi.Mux) {
 	r.Route("/api/orders", func(r chi.Router) {
 		r.Use(api.AuthMiddleware.Optional)
 		r.Post("/", api.Handle(api.OrderHandler.Create))
+		r.Post("/{id}/refund-quote", api.Handle(api.RefundHandler.Quote))
+		r.Post("/{id}/refunds", api.Handle(api.RefundHandler.Refund))
 	})
 
 	r.Route("/api/my/orders", func(r chi.Router) {

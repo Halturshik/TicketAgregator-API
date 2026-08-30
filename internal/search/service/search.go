@@ -13,10 +13,6 @@ func (s *Service) Search(ctx context.Context, transport string, in search.Search
 	if err != nil {
 		return nil, err
 	}
-	provider, err := s.provider(transport)
-	if err != nil {
-		return nil, err
-	}
 	route, err := s.loadRoute(ctx, in)
 	if err != nil {
 		return nil, err
@@ -26,7 +22,7 @@ func (s *Service) Search(ctx context.Context, transport string, in search.Search
 	}
 
 	total := generatedOffersCount(searchDate, dateOnly(now), now.UnixNano())
-	items, err := generateTripOptions(ctx, provider, in, route, total)
+	items, err := s.generateTripOptions(ctx, transport, in, route, total, now.UnixNano())
 	if err != nil {
 		logger.Error("Ошибка генерации mock-предложений: %v", err)
 		return nil, err

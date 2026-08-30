@@ -8,6 +8,11 @@ const (
 
 	TransactionTypeSpend = "spend"
 	TransactionTypeEarn  = "earn"
+
+	TransactionTypeRefundRestore = "refund_restore"
+	TransactionTypeRefundRevoke  = "refund_revoke"
+	TransactionTypeDebtCreate    = "debt_create"
+	TransactionTypeDebtRepay     = "debt_repay"
 )
 
 func Earned(amount int) int {

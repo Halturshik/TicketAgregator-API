@@ -8,9 +8,11 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
 
-func buildTickets(directions []search.Offer, passengers []orders.OrderPassengerDraft) ([]orders.TicketDraft, error) {
-	tickets := make([]orders.TicketDraft, 0, len(directions)*len(passengers))
-	for _, direction := range directions {
+const refundPolicyVersion = 1
+
+func buildTickets(trip *selectedTrip, passengers []orders.OrderPassengerDraft) ([]orders.TicketDraft, error) {
+	tickets := make([]orders.TicketDraft, 0, len(trip.directions)*len(passengers))
+	for _, direction := range trip.directions {
 		series, err := number.NewSeries(direction.Transport)
 		if err != nil {
 			return nil, fmt.Errorf("create ticket number series: %w", err)
@@ -22,7 +24,10 @@ func buildTickets(directions []search.Offer, passengers []orders.OrderPassengerD
 			}
 			tickets = append(tickets, orders.TicketDraft{
 				TicketNumber: ticketNumber, PassengerIndex: passengerIndex,
-				Transport: direction.Transport, IsInternational: direction.IsInternational,
+				SupplierCode: trip.supplierCode, SupplierOfferID: trip.supplierOfferID,
+				FareType: trip.fareType, RefundPolicy: trip.refundPolicy,
+				RefundPolicyVersion: refundPolicyVersion,
+				Transport:           direction.Transport, IsInternational: direction.IsInternational,
 				Price: direction.PricePerPassenger, Segments: snapshotSegments(direction.Segments),
 			})
 		}

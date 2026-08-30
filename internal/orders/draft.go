@@ -1,6 +1,10 @@
 package orders
 
-import "time"
+import (
+	"time"
+
+	"github.com/Halturshik/TicketAgregator-API/internal/fare"
+)
 
 type CreateOrderParams struct {
 	UserID            *int
@@ -26,10 +30,18 @@ type OrderPassengerDraft struct {
 }
 
 type TicketDraft struct {
-	TicketNumber    string
-	PassengerIndex  int
-	Transport       string
-	IsInternational bool
-	Price           int
-	Segments        []TicketSegmentSnapshot
+	TicketNumber        string
+	PassengerIndex      int
+	SupplierCode        string
+	SupplierOfferID     string
+	FareType            string
+	RefundPolicy        fare.RefundPolicy
+	RefundPolicyVersion int
+	Transport           string
+	IsInternational     bool
+	Price               int
+	BonusSpent          int
+	BonusEarned         int
+	PayableAmount       int
+	Segments            []TicketSegmentSnapshot
 }

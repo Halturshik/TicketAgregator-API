@@ -19,8 +19,13 @@ func ValidName(s string) bool {
 }
 
 func ValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
-	return err == nil
+	email = strings.TrimSpace(email)
+	parsed, err := mail.ParseAddress(email)
+	if err != nil {
+		return false
+	}
+
+	return parsed.Name == "" && parsed.Address == email
 }
 
 func ValidBirthDate(s string) (time.Time, error) {

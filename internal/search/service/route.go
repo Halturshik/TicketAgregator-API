@@ -45,6 +45,9 @@ func (s *Service) loadRoute(ctx context.Context, in search.SearchInput) (searchR
 }
 
 func validateTransportRoute(transport string, from search.City, to search.City) error {
+	if !transportpkg.IsSupported(transport) {
+		return apierror.ErrInvalidRequest
+	}
 	if transportpkg.IsGround(transport) && !groundRouteAllowed(from, to) {
 		return apierror.ErrInvalidRequest
 	}

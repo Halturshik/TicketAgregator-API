@@ -9,12 +9,12 @@ const (
 	FirstHorizonMonths  = 3
 	SecondHorizonMonths = 6
 	ThirdHorizonMonths  = 9
-	FirstHorizonBase    = 18
-	FirstHorizonExtra   = 27
-	SecondHorizonBase   = 14
-	SecondHorizonExtra  = 20
-	ThirdHorizonBase    = 10
-	ThirdHorizonExtra   = 15
+	FirstHorizonBase    = 52
+	FirstHorizonExtra   = 36
+	SecondHorizonBase   = 31
+	SecondHorizonExtra  = 14
+	ThirdHorizonBase    = 19
+	ThirdHorizonExtra   = 9
 	FourthHorizonBase   = 6
 	FourthHorizonExtra  = 10
 )

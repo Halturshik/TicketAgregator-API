@@ -8,4 +8,5 @@ type Request struct {
 	To     search.City
 	Cities []search.City
 	Count  int
+	Seed   int64
 }

@@ -60,8 +60,23 @@ func (s *Service) StartRegistration(ctx context.Context, in auth.RegisterInput) 
 		return apierror.ErrEmailIsUsed
 	}
 
-	err = s.registrationStore.Save(ctx, in.Email, in)
+	passwordHash, err := password.HashPassword(in.Password)
 	if err != nil {
+		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
+		return err
+	}
+
+	pending := auth.PendingRegistration{
+		FirstName:    in.FirstName,
+		MiddleName:   in.MiddleName,
+		LastName:     in.LastName,
+		BirthDate:    in.BirthDate,
+		Email:        in.Email,
+		PasswordHash: passwordHash,
+		IsRussian:    in.IsRussian,
+	}
+
+	if err := s.registrationStore.Save(ctx, in.Email, pending); err != nil {
 		return err
 	}
 
@@ -93,14 +108,12 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 	if err != nil {
 		return nil, err
 	}
+	if stored.PasswordHash == "" {
+		logger.Error("Временные данные регистрации для %s не содержат хэш пароля", in.Email)
+		return nil, auth.ErrInvalidRegistrationData
+	}
 
 	birthDate, _ := validator.ValidBirthDate(stored.BirthDate)
-
-	hashPassword, err := password.HashPassword(stored.Password)
-	if err != nil {
-		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
-		return nil, err
-	}
 
 	dbParams := auth.CreateUserParams{
 		FirstName:    stored.FirstName,
@@ -108,7 +121,7 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		LastName:     stored.LastName,
 		BirthDate:    birthDate,
 		Email:        stored.Email,
-		PasswordHash: hashPassword,
+		PasswordHash: stored.PasswordHash,
 		IsRussian:    stored.IsRussian,
 	}
 

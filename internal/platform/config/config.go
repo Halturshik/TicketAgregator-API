@@ -21,6 +21,16 @@ type Config struct {
 
 	JWTSecret                  string
 	DocumentVerificationSecret string
+	SupplierGRPCAddress        string
+}
+
+type SupplierConfig struct {
+	DBHost     string
+	DBPort     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	GRPCPort   string
 }
 
 func LoadConfig() (*Config, error) {
@@ -37,6 +47,7 @@ func LoadConfig() (*Config, error) {
 		RedisPassword:              os.Getenv("REDIS_PASSWORD"),
 		JWTSecret:                  os.Getenv("JWT_SECRET"),
 		DocumentVerificationSecret: os.Getenv("DOCUMENT_VERIFICATION_SECRET"),
+		SupplierGRPCAddress:        os.Getenv("SUPPLIER_GRPC_ADDRESS"),
 	}
 
 	if cfg.DBHost == "" {
@@ -83,6 +94,36 @@ func LoadConfig() (*Config, error) {
 	if cfg.DocumentVerificationSecret == "" {
 		cfg.DocumentVerificationSecret = cfg.JWTSecret
 	}
+	if cfg.SupplierGRPCAddress == "" {
+		cfg.SupplierGRPCAddress = "localhost:9090"
+	}
 
+	return cfg, nil
+}
+
+func LoadSupplierConfig() (*SupplierConfig, error) {
+	cfg := &SupplierConfig{
+		DBHost: os.Getenv("DB_HOST"), DBPort: os.Getenv("DB_PORT"),
+		DBUser: os.Getenv("DB_USER"), DBPassword: os.Getenv("DB_PASSWORD"),
+		DBName: os.Getenv("DB_NAME"), GRPCPort: os.Getenv("SUPPLIER_GRPC_PORT"),
+	}
+	if cfg.DBHost == "" {
+		return nil, fmt.Errorf("DB_HOST не указан")
+	}
+	if cfg.DBPort == "" {
+		return nil, fmt.Errorf("DB_PORT не указан")
+	}
+	if cfg.DBUser == "" {
+		return nil, fmt.Errorf("DB_USER не указан")
+	}
+	if cfg.DBPassword == "" {
+		return nil, fmt.Errorf("DB_PASSWORD не указан")
+	}
+	if cfg.DBName == "" {
+		return nil, fmt.Errorf("DB_NAME не указан")
+	}
+	if cfg.GRPCPort == "" {
+		cfg.GRPCPort = "9090"
+	}
 	return cfg, nil
 }

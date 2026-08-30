@@ -4,10 +4,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/bonus"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 	"github.com/Halturshik/TicketAgregator-API/internal/transport"
-	"github.com/google/uuid"
 )
 
 func (p *MockProvider) generateDirection(
@@ -18,6 +16,7 @@ func (p *MockProvider) generateDirection(
 	earliestDeparture time.Time,
 	firstCarrier Carrier,
 	usedRouteNumbers map[string]struct{},
+	offerID string,
 	rnd *rand.Rand,
 ) search.Offer {
 	isInternational := from.CountryID != to.CountryID
@@ -31,12 +30,11 @@ func (p *MockProvider) generateDirection(
 	)
 
 	return search.Offer{
-		ID:                uuid.NewString(),
+		ID:                offerID,
 		Transport:         p.transport,
 		IsInternational:   isInternational,
 		Price:             price,
 		PricePerPassenger: pricePerPassenger,
-		BonusEarn:         bonus.Earned(price),
 		TransferCount:     len(segments) - 1,
 		DurationMinutes:   int(lastArrival.Sub(departure).Minutes()),
 		Segments:          segments,

@@ -23,7 +23,7 @@ func (s *RegistrationStore) key(email string) string {
 	return RegistrationKey(email)
 }
 
-func (s *RegistrationStore) Save(ctx context.Context, email string, data auth.RegisterInput) error {
+func (s *RegistrationStore) Save(ctx context.Context, email string, data auth.PendingRegistration) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		logger.Error("Ошибка при сериализации регистрационных данных для %s: %v", email, err)
@@ -38,14 +38,14 @@ func (s *RegistrationStore) Save(ctx context.Context, email string, data auth.Re
 	return nil
 }
 
-func (s *RegistrationStore) Get(ctx context.Context, email string) (*auth.RegisterInput, error) {
+func (s *RegistrationStore) Get(ctx context.Context, email string) (*auth.PendingRegistration, error) {
 	data, err := s.redis.Get(ctx, s.key(email)).Bytes()
 	if err != nil {
 		logger.Error("Ошибка при получения регистрационных данных из redis для %s: %v", email, err)
 		return nil, err
 	}
 
-	var result auth.RegisterInput
+	var result auth.PendingRegistration
 	if err := json.Unmarshal(data, &result); err != nil {
 		logger.Error("Ошибка при десериализации регистрационных данных для %s: %v", email, err)
 		return nil, err

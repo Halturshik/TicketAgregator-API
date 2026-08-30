@@ -14,7 +14,7 @@ import (
 func (s *Service) buildOrderContent(
 	ctx context.Context,
 	userID *int,
-	directions []search.Offer,
+	trip *selectedTrip,
 	bookings []orders.PassengerBooking,
 ) ([]orders.OrderPassengerDraft, []orders.TicketDraft, error) {
 	passengerDrafts := make([]orders.OrderPassengerDraft, 0, len(bookings))
@@ -28,14 +28,14 @@ func (s *Service) buildOrderContent(
 			}
 			selfSeen = true
 		}
-		draft, err := s.buildPassengerDraft(ctx, userID, directions, booking, seenSavedPassengers)
+		draft, err := s.buildPassengerDraft(ctx, userID, trip.directions, booking, seenSavedPassengers)
 		if err != nil {
 			return nil, nil, err
 		}
 		passengerDrafts = append(passengerDrafts, *draft)
 	}
 
-	tickets, err := buildTickets(directions, passengerDrafts)
+	tickets, err := buildTickets(trip, passengerDrafts)
 	if err != nil {
 		return nil, nil, err
 	}

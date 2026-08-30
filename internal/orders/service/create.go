@@ -17,12 +17,15 @@ func (s *Service) Create(ctx context.Context, userID *int, in orders.CreateOrder
 	if err != nil {
 		return nil, err
 	}
-	passengers, tickets, err := s.buildOrderContent(ctx, userID, trip.directions, in.Passengers)
+	passengers, tickets, err := s.buildOrderContent(ctx, userID, trip, in.Passengers)
 	if err != nil {
 		return nil, err
 	}
 	pricing, err := s.calculatePricing(ctx, userID, in.UseBonus, trip.total)
 	if err != nil {
+		return nil, err
+	}
+	if err := allocateTicketPricing(tickets, pricing, trip.total); err != nil {
 		return nil, err
 	}
 	guestEmail, guestPaymentToken, err := guestPaymentData(userID, in.GuestEmail)

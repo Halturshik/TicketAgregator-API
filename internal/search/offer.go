@@ -1,5 +1,7 @@
 package search
 
+import "github.com/Halturshik/TicketAgregator-API/internal/fare"
+
 type Segment struct {
 	Order         int    `json:"order"`
 	FromCityID    int    `json:"from_city_id"`
@@ -28,12 +30,17 @@ type Offer struct {
 }
 
 type TripOption struct {
-	ID                string `json:"id"`
-	Transport         string `json:"transport"`
-	Price             int    `json:"price"`
-	PricePerPassenger int    `json:"price_per_passenger"`
-	BonusEarn         int    `json:"bonus_earn"`
-	BonusHint         string `json:"bonus_hint,omitempty"`
-	Outbound          Offer  `json:"outbound"`
-	Return            *Offer `json:"return,omitempty"`
+	ID                string            `json:"id"`
+	ScheduleID        string            `json:"schedule_id"`
+	SupplierCode      string            `json:"supplier_code"`
+	SupplierOfferID   string            `json:"supplier_offer_id"`
+	FareType          string            `json:"fare_type"`
+	RefundPolicy      fare.RefundPolicy `json:"refund_policy"`
+	Transport         string            `json:"transport"`
+	Price             int               `json:"price"`
+	PricePerPassenger int               `json:"price_per_passenger"`
+	BonusEarn         int               `json:"bonus_earn"`
+	BonusHint         string            `json:"bonus_hint,omitempty"`
+	Outbound          Offer             `json:"outbound"`
+	Return            *Offer            `json:"return,omitempty"`
 }

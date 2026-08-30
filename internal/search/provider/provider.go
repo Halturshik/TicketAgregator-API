@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"sync"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
@@ -31,47 +30,12 @@ func (p *MockProvider) Generate(ctx context.Context, req Request) ([]search.Trip
 		return []search.TripOption{}, nil
 	}
 
-	workers := min(WorkerLimit, req.Count)
-	jobs := make(chan int)
-	results := make(chan search.TripOption, req.Count)
-
-	var wg sync.WaitGroup
-	for worker := 0; worker < workers; worker++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for index := range jobs {
-				if ctx.Err() != nil {
-					return
-				}
-				results <- p.generateTripOption(req, index)
-			}
-		}()
-	}
-
-	go func() {
-		defer close(jobs)
-		for index := 0; index < req.Count; index++ {
-			select {
-			case <-ctx.Done():
-				return
-			case jobs <- index:
-			}
-		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
 	options := make([]search.TripOption, 0, req.Count)
-	for option := range results {
-		options = append(options, option)
+	for index := 0; index < req.Count; index++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		options = append(options, p.generateTripOption(req, index))
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
 	return options, nil
 }

@@ -3,16 +3,22 @@ package service
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
+	"github.com/Halturshik/TicketAgregator-API/internal/fare"
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
 
 type selectedTrip struct {
-	directions []search.Offer
-	total      int
+	directions      []search.Offer
+	total           int
+	supplierCode    string
+	supplierOfferID string
+	fareType        string
+	refundPolicy    fare.RefundPolicy
 }
 
 func (s *Service) loadTrip(ctx context.Context, in orders.CreateOrderInput) (*selectedTrip, error) {
@@ -31,7 +37,11 @@ func (s *Service) loadTrip(ctx context.Context, in orders.CreateOrderInput) (*se
 	if err != nil {
 		return nil, err
 	}
-	return &selectedTrip{directions: directions, total: total}, nil
+	return &selectedTrip{
+		directions: directions, total: total,
+		supplierCode: option.SupplierCode, supplierOfferID: option.SupplierOfferID,
+		fareType: option.FareType, refundPolicy: option.RefundPolicy,
+	}, nil
 }
 
 func selectTripOption(all []search.TripOption, id string) (*search.TripOption, error) {
@@ -44,6 +54,11 @@ func selectTripOption(all []search.TripOption, id string) (*search.TripOption, e
 }
 
 func validateTripOption(searchID string, option search.TripOption, passengerCount int) ([]search.Offer, int, error) {
+	expectedPolicy, validPolicy := fare.Policy(option.FareType)
+	if option.SupplierCode == "" || option.SupplierOfferID == "" || !validPolicy || !reflect.DeepEqual(option.RefundPolicy, expectedPolicy) {
+		logger.Error("Некорректные supplier-данные предложения в кеше: searchID=%s tripOptionID=%s", searchID, option.ID)
+		return nil, 0, fmt.Errorf("invalid cached supplier offer %s", option.ID)
+	}
 	directions := []search.Offer{option.Outbound}
 	if option.Return != nil {
 		directions = append(directions, *option.Return)

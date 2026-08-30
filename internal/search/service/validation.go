@@ -1,11 +1,42 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
+	"github.com/Halturshik/TicketAgregator-API/internal/transport"
 )
+
+func validProviderCodes(codes []string) bool {
+	if len(codes) == 0 {
+		return false
+	}
+	seen := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		code = strings.TrimSpace(code)
+		if code == "" {
+			return false
+		}
+		if _, duplicate := seen[code]; duplicate {
+			return false
+		}
+		seen[code] = struct{}{}
+	}
+	return true
+}
+
+func validCarrierConfiguration(carriers []search.CarrierConfig) bool {
+	configured := make(map[string]bool, 3)
+	for _, carrier := range carriers {
+		if strings.TrimSpace(carrier.Name) == "" || strings.TrimSpace(carrier.Code) == "" || !transport.IsSupported(carrier.TransportType) {
+			return false
+		}
+		configured[carrier.TransportType] = true
+	}
+	return configured[transport.Avia] && configured[transport.Rail] && configured[transport.Bus]
+}
 
 func normalizeInput(in *search.SearchInput, now time.Time) (time.Time, error) {
 	if in.Passengers < MinPassengers || in.Passengers > MaxPassengers {
