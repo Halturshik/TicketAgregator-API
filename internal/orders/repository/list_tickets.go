@@ -21,10 +21,11 @@ func (r *Repository) loadHistoryTickets(ctx context.Context, items []orders.Hist
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT t.order_id, t.id, t.ticket_number, t.status, t.transport_type,
 			op.passenger_snapshot, op.document_snapshot,
-			ts.segment_order, ts.from_city, ts.to_city, ts.departure_time, ts.arrival_time
+			ts.segment_order, st.from_city, st.to_city, st.departure_time, st.arrival_time
 		FROM tickets t
 		JOIN order_passengers op ON op.id = t.order_passenger_id AND op.order_id = t.order_id
 		JOIN ticket_segments ts ON ts.ticket_id = t.id
+		JOIN scheduled_trips st ON st.id = ts.scheduled_trip_id
 		WHERE t.order_id = ANY($1)
 		ORDER BY t.order_id, t.id, ts.segment_order
 	`, pq.Array(orderIDs))

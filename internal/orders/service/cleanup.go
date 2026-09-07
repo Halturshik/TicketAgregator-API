@@ -10,13 +10,22 @@ import (
 func (s *Service) CleanupExpired(ctx context.Context, limit int) (int, error) {
 	limit = orders.NormalizeCleanupLimit(limit)
 	before := s.now().UTC().Add(-orders.ExpiredOrderRetention)
-	deleted, err := s.repo.DeleteExpired(ctx, before, limit)
+	deletedOrders, err := s.repo.DeleteExpiredOrders(ctx, before, limit)
 	if err != nil {
 		logger.Error("Ошибка удаления просроченных неоплаченных заказов: %v", err)
 		return 0, err
 	}
-	if deleted > 0 {
-		logger.Info("Удалены просроченные неоплаченные заказы: count=%d", deleted)
+	if deletedOrders > 0 {
+		logger.Info("Удалены просроченные неоплаченные заказы: count=%d", deletedOrders)
 	}
-	return deleted, nil
+
+	deletedTrips, err := s.repo.DeleteOrphanTrips(ctx, before, limit)
+	if err != nil {
+		logger.Error("Ошибка удаления неиспользуемых рейсов: %v", err)
+		return deletedOrders, err
+	}
+	if deletedTrips > 0 {
+		logger.Info("Удалены неиспользуемые рейсы: count=%d", deletedTrips)
+	}
+	return deletedOrders, nil
 }

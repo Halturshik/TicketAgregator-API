@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/app"
-	authcode "github.com/Halturshik/TicketAgregator-API/internal/auth/code"
 	authhandlers "github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
 	authmiddleware "github.com/Halturshik/TicketAgregator-API/internal/auth/middleware"
 	authrepo "github.com/Halturshik/TicketAgregator-API/internal/auth/repository"
@@ -19,6 +18,10 @@ import (
 	bonushandlers "github.com/Halturshik/TicketAgregator-API/internal/bonus/handlers"
 	bonusrepo "github.com/Halturshik/TicketAgregator-API/internal/bonus/repository"
 	bonusservice "github.com/Halturshik/TicketAgregator-API/internal/bonus/service"
+	bookingaccesshandlers "github.com/Halturshik/TicketAgregator-API/internal/bookingaccess/handlers"
+	bookingaccessrepo "github.com/Halturshik/TicketAgregator-API/internal/bookingaccess/repository"
+	bookingaccessservice "github.com/Halturshik/TicketAgregator-API/internal/bookingaccess/service"
+	bookingaccessstore "github.com/Halturshik/TicketAgregator-API/internal/bookingaccess/store"
 	checkouthandlers "github.com/Halturshik/TicketAgregator-API/internal/checkout/handlers"
 	checkoutrepo "github.com/Halturshik/TicketAgregator-API/internal/checkout/repository"
 	checkoutservice "github.com/Halturshik/TicketAgregator-API/internal/checkout/service"
@@ -32,10 +35,12 @@ import (
 	passengerrepo "github.com/Halturshik/TicketAgregator-API/internal/passengers/repository"
 	passengerservice "github.com/Halturshik/TicketAgregator-API/internal/passengers/service"
 	paymentprovider "github.com/Halturshik/TicketAgregator-API/internal/payments/provider"
+	"github.com/Halturshik/TicketAgregator-API/internal/platform/codegen"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/postgres"
+	"github.com/Halturshik/TicketAgregator-API/internal/platform/ratelimit"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/redis"
 	refundhandlers "github.com/Halturshik/TicketAgregator-API/internal/refunds/handlers"
 	refundrepo "github.com/Halturshik/TicketAgregator-API/internal/refunds/repository"
@@ -46,6 +51,9 @@ import (
 	searchstore "github.com/Halturshik/TicketAgregator-API/internal/search/store"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 	suppliergrpc "github.com/Halturshik/TicketAgregator-API/internal/supplier/grpcclient"
+	triphandlers "github.com/Halturshik/TicketAgregator-API/internal/trips/handlers"
+	triprepo "github.com/Halturshik/TicketAgregator-API/internal/trips/repository"
+	tripservice "github.com/Halturshik/TicketAgregator-API/internal/trips/service"
 	userhandlers "github.com/Halturshik/TicketAgregator-API/internal/users/handlers"
 	userrepo "github.com/Halturshik/TicketAgregator-API/internal/users/repository"
 	userservice "github.com/Halturshik/TicketAgregator-API/internal/users/service"
@@ -80,7 +88,7 @@ func main() {
 	jwtService := authtoken.NewJWTService(cfg.JWTSecret)
 
 	emailMailer := &mailer.ConsoleMailer{}
-	codeGenerator := &authcode.RandomCodeGenerator{}
+	codeGenerator := codegen.NewNumericGenerator(codegen.DefaultNumericLength)
 	codeStore := authstore.NewCodeService(redisClient)
 	registrationStore := authstore.NewRegistrationStore(redisClient)
 	loginStore := authstore.NewLoginStore(redisClient)
@@ -159,9 +167,20 @@ func main() {
 		supplierClient,
 	)
 	refundHandler := refundhandlers.New(refundSvc)
+	bookingAccessSvc := bookingaccessservice.NewService(
+		bookingaccessrepo.NewRepository(infraStore.DB),
+		bookingaccessstore.NewChallengeStore(redisClient),
+		bookingaccessstore.NewAccessStore(redisClient),
+		emailMailer,
+		codeGenerator,
+		refundSvc,
+	)
+	bookingHandler := bookingaccesshandlers.New(bookingAccessSvc)
+	tripHandler := triphandlers.New(tripservice.NewService(triprepo.NewRepository(infraStore.DB)))
 	reconciliationCtx, stopReconciliation := context.WithCancel(context.Background())
 	defer stopReconciliation()
 	go runRefundReconciliation(reconciliationCtx, refundSvc)
+	rateLimitMiddleware := app.NewRateLimitMiddleware(ratelimit.New(redisClient))
 
 	apiServer := app.NewAPI(
 		authHandler,
@@ -173,7 +192,10 @@ func main() {
 		checkoutHandler,
 		bonusHandler,
 		refundHandler,
+		bookingHandler,
+		tripHandler,
 		authMiddleware,
+		rateLimitMiddleware,
 	)
 
 	r := chi.NewRouter()

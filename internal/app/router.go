@@ -4,12 +4,14 @@ import (
 	authhandlers "github.com/Halturshik/TicketAgregator-API/internal/auth/handlers"
 	authmiddleware "github.com/Halturshik/TicketAgregator-API/internal/auth/middleware"
 	bonushandlers "github.com/Halturshik/TicketAgregator-API/internal/bonus/handlers"
+	bookingaccesshandlers "github.com/Halturshik/TicketAgregator-API/internal/bookingaccess/handlers"
 	checkouthandlers "github.com/Halturshik/TicketAgregator-API/internal/checkout/handlers"
 	documenthandlers "github.com/Halturshik/TicketAgregator-API/internal/documents/handlers"
 	orderhandlers "github.com/Halturshik/TicketAgregator-API/internal/orders/handlers"
 	passengerhandlers "github.com/Halturshik/TicketAgregator-API/internal/passengers/handlers"
 	refundhandlers "github.com/Halturshik/TicketAgregator-API/internal/refunds/handlers"
 	searchhandlers "github.com/Halturshik/TicketAgregator-API/internal/search/handlers"
+	triphandlers "github.com/Halturshik/TicketAgregator-API/internal/trips/handlers"
 	userhandlers "github.com/Halturshik/TicketAgregator-API/internal/users/handlers"
 	"github.com/go-chi/chi/v5"
 )
@@ -24,7 +26,10 @@ type API struct {
 	CheckoutHandler  *checkouthandlers.Handler
 	BonusHandler     *bonushandlers.Handler
 	RefundHandler    *refundhandlers.Handler
+	BookingHandler   *bookingaccesshandlers.Handler
+	TripHandler      *triphandlers.Handler
 	AuthMiddleware   *authmiddleware.Middleware
+	RateLimit        *RateLimitMiddleware
 }
 
 func NewAPI(
@@ -37,7 +42,10 @@ func NewAPI(
 	checkoutHandler *checkouthandlers.Handler,
 	bonusHandler *bonushandlers.Handler,
 	refundHandler *refundhandlers.Handler,
+	bookingHandler *bookingaccesshandlers.Handler,
+	tripHandler *triphandlers.Handler,
 	authMiddleware *authmiddleware.Middleware,
+	rateLimit *RateLimitMiddleware,
 ) *API {
 	return &API{
 		AuthHandler:      authHandler,
@@ -49,7 +57,10 @@ func NewAPI(
 		CheckoutHandler:  checkoutHandler,
 		BonusHandler:     bonusHandler,
 		RefundHandler:    refundHandler,
+		BookingHandler:   bookingHandler,
+		TripHandler:      tripHandler,
 		AuthMiddleware:   authMiddleware,
+		RateLimit:        rateLimit,
 	}
 }
 
@@ -95,10 +106,10 @@ func (api *API) Init(r *chi.Mux) {
 	r.Route("/api/search", func(r chi.Router) {
 		r.Use(api.AuthMiddleware.Optional)
 		r.Get("/cities", api.Handle(api.SearchHandler.ListCities))
-		r.Post("/air", api.Handle(api.SearchHandler.SearchAir))
-		r.Post("/railway", api.Handle(api.SearchHandler.SearchRailway))
-		r.Post("/bus", api.Handle(api.SearchHandler.SearchBus))
-		r.Get("/{id}", api.Handle(api.SearchHandler.GetPage))
+		r.With(api.RateLimit.Search).Post("/air", api.Handle(api.SearchHandler.SearchAir))
+		r.With(api.RateLimit.Search).Post("/railway", api.Handle(api.SearchHandler.SearchRailway))
+		r.With(api.RateLimit.Search).Post("/bus", api.Handle(api.SearchHandler.SearchBus))
+		r.With(api.RateLimit.SearchPage).Get("/{id}", api.Handle(api.SearchHandler.GetPage))
 	})
 
 	r.Route("/api/orders", func(r chi.Router) {
@@ -107,6 +118,18 @@ func (api *API) Init(r *chi.Mux) {
 		r.Post("/{id}/refund-quote", api.Handle(api.RefundHandler.Quote))
 		r.Post("/{id}/refunds", api.Handle(api.RefundHandler.Refund))
 	})
+
+	r.Route("/api/bookings", func(r chi.Router) {
+		r.Use(api.AuthMiddleware.Optional)
+		r.With(api.RateLimit.PublicLookup).Post("/lookup", api.Handle(api.BookingHandler.Lookup))
+		r.With(api.RateLimit.PublicLookup).Post("/access/request", api.Handle(api.BookingHandler.RequestAccess))
+		r.With(api.RateLimit.PublicLookup).Post("/access/confirm", api.Handle(api.BookingHandler.ConfirmAccess))
+		r.Get("/{orderNumber}", api.Handle(api.BookingHandler.Details))
+		r.Post("/{orderNumber}/refund-quote", api.Handle(api.BookingHandler.QuoteRefund))
+		r.Post("/{orderNumber}/refunds", api.Handle(api.BookingHandler.Refund))
+	})
+
+	r.With(api.RateLimit.PublicLookup).Post("/api/trips/lookup", api.Handle(api.TripHandler.Lookup))
 
 	r.Route("/api/my/orders", func(r chi.Router) {
 		r.Use(api.AuthMiddleware.Require)

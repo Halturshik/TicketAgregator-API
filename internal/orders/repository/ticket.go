@@ -17,12 +17,21 @@ func insertTickets(
 	params orders.CreateOrderParams,
 ) ([]orders.Ticket, error) {
 	tickets := make([]orders.Ticket, 0, len(params.Tickets))
+	scheduledTripIDs := make(map[string]int)
 	for _, draft := range params.Tickets {
 		if draft.PassengerIndex < 0 || draft.PassengerIndex >= len(params.Passengers) {
 			return nil, fmt.Errorf("invalid passenger index %d", draft.PassengerIndex)
 		}
 		passenger := params.Passengers[draft.PassengerIndex]
-		ticket, err := insertTicket(ctx, tx, orderID, orderPassengerIDs[draft.PassengerIndex], draft, passenger)
+		ticket, err := insertTicket(
+			ctx,
+			tx,
+			orderID,
+			orderPassengerIDs[draft.PassengerIndex],
+			draft,
+			passenger,
+			scheduledTripIDs,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -38,6 +47,7 @@ func insertTicket(
 	orderPassengerID int,
 	draft orders.TicketDraft,
 	passenger orders.OrderPassengerDraft,
+	scheduledTripIDs map[string]int,
 ) (*orders.Ticket, error) {
 	policy, err := json.Marshal(draft.RefundPolicy)
 	if err != nil {
@@ -57,7 +67,7 @@ func insertTicket(
 	if err != nil {
 		return nil, fmt.Errorf("insert ticket: %w", err)
 	}
-	if err := insertTicketSegments(ctx, tx, ticketID, draft); err != nil {
+	if err := insertTicketSegments(ctx, tx, ticketID, draft, scheduledTripIDs); err != nil {
 		return nil, err
 	}
 
@@ -71,13 +81,29 @@ func insertTicket(
 	}, nil
 }
 
-func insertTicketSegments(ctx context.Context, tx *sql.Tx, ticketID int, draft orders.TicketDraft) error {
+func insertTicketSegments(
+	ctx context.Context,
+	tx *sql.Tx,
+	ticketID int,
+	draft orders.TicketDraft,
+	scheduledTripIDs map[string]int,
+) error {
 	for _, segment := range draft.Segments {
+		tripKey := scheduledTripKey(draft.Transport, segment)
+		scheduledTripID, exists := scheduledTripIDs[tripKey]
+		if !exists {
+			var err error
+			scheduledTripID, err = insertScheduledTrip(ctx, tx, tripKey, draft.Transport, segment)
+			if err != nil {
+				return err
+			}
+			scheduledTripIDs[tripKey] = scheduledTripID
+		}
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO ticket_segments
-				(ticket_id, segment_order, from_city_id, to_city_id, from_city, to_city, departure_time, arrival_time, carrier_id, carrier, carrier_code, route_number)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9, 0),$10,$11,$12)
-		`, ticketID, segment.Order, segment.FromCityID, segment.ToCityID, segment.FromCity, segment.ToCity, segment.DepartureTime, segment.ArrivalTime, segment.CarrierID, segment.Carrier, segment.CarrierCode, segment.RouteNumber)
+				(ticket_id, scheduled_trip_id, segment_order)
+			VALUES ($1, $2, $3)
+		`, ticketID, scheduledTripID, segment.Order)
 		if err != nil {
 			return fmt.Errorf("insert ticket segment: %w", err)
 		}

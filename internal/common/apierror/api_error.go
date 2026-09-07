@@ -107,6 +107,12 @@ var (
 		Status:  http.StatusTooManyRequests,
 	}
 
+	ErrRateLimited = &APIError{
+		Code:    "rate_limit_exceeded",
+		Message: "Превышено количество запросов. Попробуйте позже",
+		Status:  http.StatusTooManyRequests,
+	}
+
 	ErrSamePassword = &APIError{
 		Code:    "same_password",
 		Message: "Новый пароль не должен совпадать со старым",

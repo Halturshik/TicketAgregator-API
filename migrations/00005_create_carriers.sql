@@ -8,7 +8,7 @@ CREATE TABLE carriers (
     name VARCHAR(100) NOT NULL,
 	code VARCHAR(3) NOT NULL,
     transport_type VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT carriers_transport_check
         CHECK (transport_type IN ('avia', 'rail', 'bus')),

@@ -12,8 +12,8 @@ CREATE TABLE saved_passengers (
     last_name VARCHAR(100) NOT NULL,
     birth_date DATE NOT NULL,
     is_russian BOOLEAN NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-	updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	deleted_at TIMESTAMPTZ
 );
 
@@ -28,8 +28,8 @@ CREATE TABLE documents (
 	document_fingerprint VARCHAR(64) NOT NULL,
     expires_at DATE,
 	last_checked_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT documents_one_owner CHECK (
         (owner_user_id IS NOT NULL AND passenger_id IS NULL)

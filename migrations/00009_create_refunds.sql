@@ -57,7 +57,7 @@ CREATE TABLE bonus_transactions (
 	refund_id INT REFERENCES refunds(id) ON DELETE SET NULL,
 	type VARCHAR(20) NOT NULL,
 	amount INT NOT NULL CHECK (amount > 0),
-	created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 	CONSTRAINT bonus_transactions_type_check CHECK (
 		type IN ('earn', 'spend', 'rollback', 'refund_restore', 'refund_revoke', 'debt_create', 'debt_repay')

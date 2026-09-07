@@ -19,7 +19,10 @@ const orderColumns = `
 const ticketColumns = `
 	SELECT t.id, t.ticket_number, t.status, t.supplier_code, t.supplier_offer_id, t.fare_type,
 		t.refund_policy_version, t.refund_policy_snapshot, t.price,
-		(SELECT MIN(ts.departure_time) FROM ticket_segments ts WHERE ts.ticket_id = t.id)
+		(SELECT MIN(st.departure_time)
+		 FROM ticket_segments ts
+		 JOIN scheduled_trips st ON st.id = ts.scheduled_trip_id
+		 WHERE ts.ticket_id = t.id)
 	FROM tickets t
 `
 

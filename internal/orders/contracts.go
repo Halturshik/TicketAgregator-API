@@ -18,7 +18,8 @@ type Service interface {
 type Repository interface {
 	Create(ctx context.Context, params CreateOrderParams) (*Order, error)
 	List(ctx context.Context, userID int, filter ListFilter) (*HistoryPage, error)
-	DeleteExpired(ctx context.Context, before time.Time, limit int) (int, error)
+	DeleteExpiredOrders(ctx context.Context, before time.Time, limit int) (int, error)
+	DeleteOrphanTrips(ctx context.Context, before time.Time, limit int) (int, error)
 }
 
 type SearchReader interface {

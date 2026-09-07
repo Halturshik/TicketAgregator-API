@@ -15,8 +15,8 @@ CREATE TABLE orders (
     bonus_spent INT NOT NULL DEFAULT 0 CHECK (bonus_spent >= 0),
     bonus_earned INT NOT NULL DEFAULT 0 CHECK (bonus_earned >= 0),
     payable_amount INT NOT NULL CHECK (payable_amount >= 0),
-	created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-	paid_at TIMESTAMP,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	paid_at TIMESTAMPTZ,
 	expires_at TIMESTAMPTZ NOT NULL,
 
 	CONSTRAINT orders_order_number_unique UNIQUE (order_number),
@@ -61,7 +61,7 @@ CREATE TABLE tickets (
 
 	price INT NOT NULL CHECK (price > 0),
     status VARCHAR(20) NOT NULL DEFAULT 'booked',
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT tickets_transport_check CHECK (transport_type IN ('avia', 'rail', 'bus')),
 	CONSTRAINT tickets_fare_type_check CHECK (fare_type IN ('non_refundable', 'standard', 'flexible')),
@@ -72,27 +72,40 @@ CREATE TABLE tickets (
 		REFERENCES order_passengers(id, order_id) ON DELETE CASCADE
 );
 
-CREATE TABLE ticket_segments (
-    id SERIAL PRIMARY KEY,
-    ticket_id INT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-    segment_order INT NOT NULL,
-    from_city_id INT,
-    to_city_id INT,
-    from_city VARCHAR(100) NOT NULL,
-    to_city VARCHAR(100) NOT NULL,
+CREATE TABLE scheduled_trips (
+	id SERIAL PRIMARY KEY,
+	trip_key VARCHAR(64) NOT NULL UNIQUE,
+	transport_type VARCHAR(20) NOT NULL,
+	from_city_id INT REFERENCES cities(id) ON DELETE SET NULL,
+	to_city_id INT REFERENCES cities(id) ON DELETE SET NULL,
+	from_city VARCHAR(100) NOT NULL,
+	to_city VARCHAR(100) NOT NULL,
 	departure_time TIMESTAMPTZ NOT NULL,
 	arrival_time TIMESTAMPTZ NOT NULL,
 	carrier_id INT REFERENCES carriers(id) ON DELETE SET NULL,
-    carrier VARCHAR(100) NOT NULL,
-    carrier_code VARCHAR(3) NOT NULL,
+	carrier VARCHAR(100) NOT NULL,
+	carrier_code VARCHAR(3) NOT NULL,
 	route_number VARCHAR(12) NOT NULL,
-	CONSTRAINT ticket_segments_order_unique UNIQUE (ticket_id, segment_order),
-	CONSTRAINT ticket_segments_time_check CHECK (arrival_time > departure_time)
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+	CONSTRAINT scheduled_trips_transport_check CHECK (transport_type IN ('avia', 'rail', 'bus')),
+	CONSTRAINT scheduled_trips_time_check CHECK (arrival_time > departure_time)
+);
+
+CREATE TABLE ticket_segments (
+	id SERIAL PRIMARY KEY,
+	ticket_id INT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+	scheduled_trip_id INT NOT NULL REFERENCES scheduled_trips(id),
+	segment_order INT NOT NULL,
+
+	CONSTRAINT ticket_segments_order_unique UNIQUE (ticket_id, segment_order)
 );
 
 CREATE INDEX orders_user_created_idx ON orders (user_id, created_at DESC);
 CREATE INDEX tickets_order_idx ON tickets (order_id);
-CREATE INDEX ticket_segments_route_idx ON ticket_segments (route_number);
+CREATE INDEX ticket_segments_trip_idx ON ticket_segments (scheduled_trip_id);
+CREATE INDEX scheduled_trips_route_departure_idx ON scheduled_trips (route_number, departure_time);
+CREATE INDEX scheduled_trips_created_idx ON scheduled_trips (created_at, id);
 
 CREATE TABLE payments (
     id SERIAL PRIMARY KEY,
@@ -100,7 +113,7 @@ CREATE TABLE payments (
     amount INT NOT NULL CHECK (amount >= 0),
 	status VARCHAR(20) NOT NULL,
     provider VARCHAR(40) NOT NULL DEFAULT 'mock',
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 	CONSTRAINT payments_status_check CHECK (status IN ('success', 'failed'))
 );
@@ -119,3 +132,4 @@ DROP TABLE ticket_segments;
 DROP TABLE tickets;
 DROP TABLE order_passengers;
 DROP TABLE orders;
+DROP TABLE scheduled_trips;
