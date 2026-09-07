@@ -48,12 +48,12 @@ func insertTicket(
 		INSERT INTO tickets
 			(order_id, order_passenger_id, ticket_number, supplier_code, supplier_offer_id,
 			 fare_type, refund_policy_version, refund_policy_snapshot,
-			 transport_type, is_international, price, bonus_spent, bonus_earned, payable_amount)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			 transport_type, is_international, price)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id
 	`, orderID, orderPassengerID, draft.TicketNumber, draft.SupplierCode, draft.SupplierOfferID,
 		draft.FareType, draft.RefundPolicyVersion, policy, draft.Transport, draft.IsInternational,
-		draft.Price, draft.BonusSpent, draft.BonusEarned, draft.PayableAmount).Scan(&ticketID)
+		draft.Price).Scan(&ticketID)
 	if err != nil {
 		return nil, fmt.Errorf("insert ticket: %w", err)
 	}
@@ -66,7 +66,6 @@ func insertTicket(
 		SupplierCode: draft.SupplierCode, SupplierOfferID: draft.SupplierOfferID,
 		FareType: draft.FareType, RefundPolicy: draft.RefundPolicy, RefundPolicyVersion: draft.RefundPolicyVersion,
 		IsInternational: draft.IsInternational, Price: draft.Price,
-		BonusSpent: draft.BonusSpent, BonusEarned: draft.BonusEarned, PayableAmount: draft.PayableAmount,
 		Status:    orders.TicketStatusBooked,
 		Passenger: passenger.Passenger, Document: passenger.Document, Segments: draft.Segments,
 	}, nil

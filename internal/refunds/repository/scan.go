@@ -15,7 +15,10 @@ type scanner interface {
 func scanOrder(row scanner) (*refunds.OrderData, error) {
 	var order refunds.OrderData
 	var userID sql.NullInt64
-	if err := row.Scan(&order.ID, &userID, &order.GuestToken, &order.Status); err != nil {
+	if err := row.Scan(
+		&order.ID, &userID, &order.GuestToken, &order.Status,
+		&order.CurrentTotalPrice, &order.BonusSpent, &order.BonusEarned, &order.PayableAmount,
+	); err != nil {
 		return nil, err
 	}
 	if userID.Valid {
@@ -38,9 +41,6 @@ func scanTicket(row scanner) (*refunds.TicketData, error) {
 		&ticket.RefundPolicyVersion,
 		&policy,
 		&ticket.Price,
-		&ticket.BonusSpent,
-		&ticket.BonusEarned,
-		&ticket.PayableAmount,
 		&ticket.DepartureAt,
 	); err != nil {
 		return nil, err

@@ -17,7 +17,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	items, err := h.service.List(r.Context(), userID, orders.ListFilter{
+	result, err := h.service.List(r.Context(), userID, orders.ListFilter{
 		Transport: r.URL.Query().Get("transport"),
 		Limit:     limit,
 		Offset:    offset,
@@ -25,5 +25,5 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return apierror.Wrap(err, apierror.ErrInternal)
 	}
-	return httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
+	return httpx.WriteJSON(w, http.StatusOK, result)
 }

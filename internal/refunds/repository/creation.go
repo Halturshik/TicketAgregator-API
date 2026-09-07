@@ -49,12 +49,11 @@ func (t *transaction) CreateProcessing(ctx context.Context, params refunds.Creat
 			INSERT INTO refund_items
 				(refund_id, ticket_id, supplier_code, ticket_number, supplier_offer_id,
 				 fare_type, departure_at, reason, refund_percent, gross_amount,
-				 cash_refunded, bonus_restored, bonus_revoked)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+				 supplier_refund_amount)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		`, refundID, item.TicketID, item.SupplierCode, item.TicketNumber,
 			item.SupplierOfferID, item.FareType, item.DepartureAt, item.Reason,
-			item.RefundPercent, item.GrossAmount, item.CashRefunded,
-			item.BonusRestored, item.BonusRevoked)
+			item.RefundPercent, item.GrossAmount, item.SupplierRefundAmount)
 		if err != nil {
 			return 0, false, fmt.Errorf("insert processing refund item: %w", err)
 		}

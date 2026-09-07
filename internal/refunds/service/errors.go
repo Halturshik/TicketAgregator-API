@@ -33,6 +33,9 @@ func mapError(err error) error {
 		return errIdempotencyConflict
 	case errors.Is(err, refunds.ErrSupplierMismatch), status.Code(err) == codes.NotFound:
 		return errSupplierResponse
+	case errors.Is(err, refunds.ErrInvalidFinancialState):
+		logger.Error("Некорректное финансовое состояние возврата: %v", err)
+		return apierror.ErrInternal
 	case status.Code(err) == codes.Unavailable || status.Code(err) == codes.DeadlineExceeded:
 		return errSupplierUnavailable
 	default:

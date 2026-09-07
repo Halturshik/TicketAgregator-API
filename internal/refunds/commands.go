@@ -17,18 +17,16 @@ type CreateParams struct {
 }
 
 type CreateItemParams struct {
-	TicketID        int
-	SupplierCode    string
-	TicketNumber    string
-	SupplierOfferID string
-	FareType        string
-	DepartureAt     time.Time
-	Reason          string
-	RefundPercent   int
-	GrossAmount     int
-	CashRefunded    int
-	BonusRestored   int
-	BonusRevoked    int
+	TicketID             int
+	SupplierCode         string
+	TicketNumber         string
+	SupplierOfferID      string
+	FareType             string
+	DepartureAt          time.Time
+	Reason               string
+	RefundPercent        int
+	GrossAmount          int
+	SupplierRefundAmount int
 }
 
 type SuccessParams struct {
@@ -43,12 +41,19 @@ type SuccessParams struct {
 }
 
 type SuccessItemParams struct {
-	TicketID      int
-	Reason        string
-	RefundPercent int
-	CashRefunded  int
-	BonusRestored int
-	BonusRevoked  int
+	TicketID             int
+	Reason               string
+	RefundPercent        int
+	SupplierRefundAmount int
+}
+
+type OrderRefundParams struct {
+	OrderID           int
+	Status            string
+	CurrentTotalPrice int
+	BonusSpent        int
+	BonusEarned       int
+	PayableAmount     int
 }
 
 type FailureParams struct {

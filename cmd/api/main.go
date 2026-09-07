@@ -143,6 +143,9 @@ func main() {
 		orderrepo.NewRepository(infraStore.DB), searchSvc, documentSvc, passengerSvc, bonusRepository,
 	)
 	orderHandler := orderhandlers.New(orderSvc)
+	orderCleanupCtx, stopOrderCleanup := context.WithCancel(context.Background())
+	defer stopOrderCleanup()
+	go runOrderCleanup(orderCleanupCtx, orderSvc)
 
 	checkoutSvc := checkoutservice.NewService(
 		checkoutrepo.NewRepository(infraStore.DB),
@@ -195,6 +198,7 @@ func main() {
 	sig := <-stop
 	logger.Warn("Получен сигнал завершения: %v, останавливаю сервер...", sig)
 	stopReconciliation()
+	stopOrderCleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

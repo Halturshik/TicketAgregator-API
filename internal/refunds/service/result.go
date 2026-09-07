@@ -10,9 +10,7 @@ func operationResult(operation *refunds.Operation) *refunds.Result {
 			Refundable: operation.Status != refunds.StatusFailed && item.RefundPercent > 0,
 			Reason:     item.Reason, RefundPercent: item.RefundPercent,
 			GrossAmount:       item.GrossAmount,
-			GrossRefundAmount: item.GrossAmount * item.RefundPercent / 100,
-			CashRefunded:      item.CashRefunded, BonusRestored: item.BonusRestored,
-			BonusRevoked: item.BonusRevoked,
+			GrossRefundAmount: item.SupplierRefundAmount,
 		})
 	}
 	result := &refunds.Result{

@@ -45,12 +45,20 @@ func insertOrder(ctx context.Context, tx *sql.Tx, params orders.CreateOrderParam
 	var expiresAt time.Time
 	err := tx.QueryRowContext(ctx, `
 		INSERT INTO orders
-			(user_id, guest_email, guest_payment_token, total_price, bonus_spent, bonus_earned, payable_amount, expires_at)
-		VALUES ($1, NULLIF($2, ''), NULLIF($3, '')::UUID, $4, $5, $6, $7, $8)
-		RETURNING id, status, total_price, bonus_spent, bonus_earned, payable_amount, expires_at
-	`, nullableUserID, params.GuestEmail, params.GuestPaymentToken, params.TotalPrice, params.BonusSpent, params.BonusEarned, params.PayableAmount, params.ExpiresAt).
-		Scan(&order.ID, &order.Status, &order.TotalPrice, &order.BonusSpent, &order.BonusEarned, &order.PayableAmount, &expiresAt)
+			(order_number, user_id, guest_email, guest_payment_token, total_price, current_total_price,
+			 bonus_spent, bonus_earned, payable_amount, expires_at)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, '')::UUID, $5, $6, $7, $8, $9, $10)
+		RETURNING id, order_number, status, total_price, current_total_price,
+			bonus_spent, bonus_earned, payable_amount, expires_at
+	`, params.OrderNumber, nullableUserID, params.GuestEmail, params.GuestPaymentToken,
+		params.TotalPrice, params.CurrentTotalPrice, params.BonusSpent, params.BonusEarned,
+		params.PayableAmount, params.ExpiresAt).
+		Scan(&order.ID, &order.OrderNumber, &order.Status, &order.TotalPrice, &order.CurrentTotalPrice,
+			&order.BonusSpent, &order.BonusEarned, &order.PayableAmount, &expiresAt)
 	if err != nil {
+		if isOrderNumberConflict(err) {
+			return nil, orders.ErrOrderNumberConflict
+		}
 		return nil, fmt.Errorf("insert order: %w", err)
 	}
 	order.UserID = params.UserID

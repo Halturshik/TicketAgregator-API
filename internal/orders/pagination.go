@@ -1,8 +1,8 @@
 package orders
 
 const (
-	DefaultListLimit = 10
-	MaxListLimit     = 50
+	DefaultListLimit = 5
+	MaxListLimit     = 5
 )
 
 type ListFilter struct {

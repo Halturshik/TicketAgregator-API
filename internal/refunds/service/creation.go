@@ -36,6 +36,9 @@ func (s *Service) createOperation(
 		if err := ensureRefundableOrder(order); err != nil {
 			return err
 		}
+		if !sameOrderFinancials(prepared.order, order) {
+			return refunds.ErrTicketsMismatch
+		}
 		lockedTickets, err := tx.LockTickets(ctx, orderID, input.TicketIDs, input.All)
 		if err != nil {
 			return err
@@ -92,8 +95,7 @@ func createParams(
 			TicketNumber: ticket.TicketNumber, SupplierOfferID: ticket.SupplierOfferID,
 			FareType: ticket.FareType, DepartureAt: ticket.DepartureAt,
 			Reason: item.Reason, RefundPercent: item.RefundPercent,
-			GrossAmount: item.GrossAmount, CashRefunded: item.CashRefunded,
-			BonusRestored: item.BonusRestored, BonusRevoked: item.BonusRevoked,
+			GrossAmount: item.GrossAmount, SupplierRefundAmount: item.GrossRefundAmount,
 		})
 	}
 	return refunds.CreateParams{
@@ -104,6 +106,15 @@ func createParams(
 		CashAmount:             quote.CashAmount, BonusRestored: quote.BonusRestored,
 		BonusRevoked: quote.BonusRevoked, Items: items,
 	}
+}
+
+func sameOrderFinancials(expected *refunds.OrderData, actual *refunds.OrderData) bool {
+	return expected != nil && actual != nil &&
+		expected.Status == actual.Status &&
+		expected.CurrentTotalPrice == actual.CurrentTotalPrice &&
+		expected.BonusSpent == actual.BonusSpent &&
+		expected.BonusEarned == actual.BonusEarned &&
+		expected.PayableAmount == actual.PayableAmount
 }
 
 func ticketIDs(tickets []refunds.TicketData) []int {

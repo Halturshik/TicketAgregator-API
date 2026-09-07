@@ -5,11 +5,13 @@ SELECT 'up SQL query';
 
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
+	order_number VARCHAR(9) NOT NULL,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
     guest_email VARCHAR(255),
     guest_payment_token UUID UNIQUE,
     status VARCHAR(20) NOT NULL DEFAULT 'created',
     total_price INT NOT NULL CHECK (total_price >= 0),
+	current_total_price INT NOT NULL CHECK (current_total_price >= 0 AND current_total_price <= total_price),
     bonus_spent INT NOT NULL DEFAULT 0 CHECK (bonus_spent >= 0),
     bonus_earned INT NOT NULL DEFAULT 0 CHECK (bonus_earned >= 0),
     payable_amount INT NOT NULL CHECK (payable_amount >= 0),
@@ -17,7 +19,12 @@ CREATE TABLE orders (
 	paid_at TIMESTAMP,
 	expires_at TIMESTAMPTZ NOT NULL,
 
-	CONSTRAINT orders_status_check CHECK (status IN ('created', 'paid', 'cancelled', 'expired')),
+	CONSTRAINT orders_order_number_unique UNIQUE (order_number),
+	CONSTRAINT orders_order_number_format_check CHECK (order_number ~ '^[A-Z]{3}-[0-9]{5}$'),
+	CONSTRAINT orders_bonus_limit_check CHECK (bonus_spent <= current_total_price / 2),
+	CONSTRAINT orders_status_check CHECK (
+		status IN ('created', 'paid', 'expired', 'partially_refunded', 'refunded')
+	),
 	CONSTRAINT orders_owner_check CHECK (
 		(user_id IS NOT NULL AND guest_email IS NULL AND guest_payment_token IS NULL)
 		OR (user_id IS NULL AND guest_email IS NOT NULL AND guest_payment_token IS NOT NULL)
@@ -44,6 +51,11 @@ CREATE TABLE tickets (
     order_id INT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
 	ticket_number VARCHAR(12) NOT NULL UNIQUE,
 	order_passenger_id INT NOT NULL,
+	supplier_code VARCHAR(40) NOT NULL,
+	supplier_offer_id VARCHAR(64) NOT NULL,
+	fare_type VARCHAR(30) NOT NULL,
+	refund_policy_version INT NOT NULL,
+	refund_policy_snapshot JSONB NOT NULL,
     transport_type VARCHAR(20) NOT NULL,
     is_international BOOLEAN NOT NULL,
 
@@ -52,7 +64,10 @@ CREATE TABLE tickets (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     CONSTRAINT tickets_transport_check CHECK (transport_type IN ('avia', 'rail', 'bus')),
-	CONSTRAINT tickets_status_check CHECK (status IN ('booked', 'paid', 'cancelled', 'expired')),
+	CONSTRAINT tickets_fare_type_check CHECK (fare_type IN ('non_refundable', 'standard', 'flexible')),
+	CONSTRAINT tickets_status_check CHECK (
+		status IN ('booked', 'paid', 'expired', 'refund_pending', 'refunded')
+	),
 	CONSTRAINT tickets_order_passenger_fk FOREIGN KEY (order_passenger_id, order_id)
 		REFERENCES order_passengers(id, order_id) ON DELETE CASCADE
 );
@@ -94,23 +109,11 @@ CREATE UNIQUE INDEX payments_order_success_unique
 	ON payments (order_id)
 	WHERE status = 'success';
 
-CREATE TABLE bonus_transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    order_id INT REFERENCES orders(id) ON DELETE SET NULL,
-    type VARCHAR(20) NOT NULL,
-    amount INT NOT NULL CHECK (amount > 0),
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT bonus_transactions_type_check CHECK (type IN ('earn', 'spend', 'rollback'))
-);
-
 -- +goose Down
 -- +goose StatementBegin
 SELECT 'down SQL query';
 -- +goose StatementEnd
 
-DROP TABLE bonus_transactions;
 DROP TABLE payments;
 DROP TABLE ticket_segments;
 DROP TABLE tickets;

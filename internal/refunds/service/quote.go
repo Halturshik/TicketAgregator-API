@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 
@@ -101,14 +100,6 @@ func (s *Service) prepare(ctx context.Context, userID *int, orderID int, input r
 				RefundPercent: result.RefundPercent, GrossAmount: ticket.Price,
 				GrossRefundAmount: result.GrossRefundAmount,
 			}
-			if result.Eligible {
-				item.BonusRestored = ticket.BonusSpent
-				item.BonusRevoked = ticket.BonusEarned
-				item.CashRefunded = result.GrossRefundAmount - ticket.BonusSpent
-				if item.CashRefunded < 0 || item.CashRefunded > ticket.PayableAmount {
-					return nil, fmt.Errorf("invalid cash refund for ticket %d", ticket.ID)
-				}
-			}
 			items = append(items, item)
 		}
 	}
@@ -118,6 +109,8 @@ func (s *Service) prepare(ctx context.Context, userID *int, orderID int, input r
 	sort.Slice(items, func(i, j int) bool { return items[i].TicketID < items[j].TicketID })
 
 	output := &refunds.QuoteOutput{OrderID: orderID, Refundable: true, Items: items}
+	refundedTicketTotal := 0
+	supplierRefundAmount := 0
 	for _, item := range items {
 		if !item.Refundable {
 			output.Refundable = false
@@ -126,9 +119,17 @@ func (s *Service) prepare(ctx context.Context, userID *int, orderID int, input r
 			}
 			continue
 		}
-		output.CashAmount += item.CashRefunded
-		output.BonusRestored += item.BonusRestored
-		output.BonusRevoked += item.BonusRevoked
+		refundedTicketTotal += item.GrossAmount
+		supplierRefundAmount += item.GrossRefundAmount
+	}
+	if output.Refundable {
+		financials, err := calculateRefundFinancials(order, refundedTicketTotal, supplierRefundAmount)
+		if err != nil {
+			return nil, err
+		}
+		output.CashAmount = financials.cashAmount
+		output.BonusRestored = financials.bonusRestored
+		output.BonusRevoked = financials.bonusRevoked
 	}
 	return &preparedRefund{order: order, tickets: ticketByID, quote: output}, nil
 }

@@ -25,19 +25,17 @@ func (s *Service) Create(ctx context.Context, userID *int, in orders.CreateOrder
 	if err != nil {
 		return nil, err
 	}
-	if err := allocateTicketPricing(tickets, pricing, trip.total); err != nil {
-		return nil, err
-	}
 	guestEmail, guestPaymentToken, err := guestPaymentData(userID, in.GuestEmail)
 	if err != nil {
 		return nil, err
 	}
 
-	order, err := s.repo.Create(ctx, orders.CreateOrderParams{
+	order, err := s.persistOrder(ctx, orders.CreateOrderParams{
 		UserID:            userID,
 		GuestEmail:        guestEmail,
 		GuestPaymentToken: guestPaymentToken,
 		TotalPrice:        trip.total,
+		CurrentTotalPrice: trip.total,
 		BonusSpent:        pricing.spent,
 		BonusEarned:       pricing.earned,
 		PayableAmount:     pricing.payable,
@@ -50,8 +48,8 @@ func (s *Service) Create(ctx context.Context, userID *int, in orders.CreateOrder
 		return nil, err
 	}
 	logger.Info(
-		"Заказ создан: orderID=%d tickets=%d passengers=%d total=%d payable=%d",
-		order.ID, len(order.Tickets), len(passengers), order.TotalPrice, order.PayableAmount,
+		"Заказ создан: orderID=%d orderNumber=%s tickets=%d passengers=%d total=%d payable=%d",
+		order.ID, order.OrderNumber, len(order.Tickets), len(passengers), order.TotalPrice, order.PayableAmount,
 	)
 	return order, nil
 }

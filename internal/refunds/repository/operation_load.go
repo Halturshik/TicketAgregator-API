@@ -27,6 +27,8 @@ func loadOperation(ctx context.Context, db operationQueryer, query string, arg a
 		&operation.CashAmount, &operation.BonusRestored, &operation.BonusRevoked,
 		&bonusBalance, &bonusDebt, &operation.Order.ID, &userID,
 		&operation.Order.GuestToken, &operation.Order.Status,
+		&operation.Order.CurrentTotalPrice, &operation.Order.BonusSpent,
+		&operation.Order.BonusEarned, &operation.Order.PayableAmount,
 	)
 	if err == sql.ErrNoRows {
 		return nil, refunds.ErrNotFound
@@ -50,9 +52,8 @@ func loadOperation(ctx context.Context, db operationQueryer, query string, arg a
 	itemQuery := `
 		SELECT ri.ticket_id, ri.ticket_number, t.status, ri.supplier_code,
 			ri.supplier_offer_id::text, ri.fare_type, t.refund_policy_version,
-			t.refund_policy_snapshot, ri.gross_amount, ri.bonus_restored,
-			ri.bonus_revoked, t.payable_amount, ri.departure_at, ri.reason,
-			ri.refund_percent, ri.cash_refunded
+			t.refund_policy_snapshot, ri.gross_amount, ri.departure_at, ri.reason,
+			ri.refund_percent, ri.supplier_refund_amount
 		FROM refund_items ri
 		JOIN tickets t ON t.id = ri.ticket_id
 		WHERE ri.refund_id = $1
@@ -71,15 +72,12 @@ func loadOperation(ctx context.Context, db operationQueryer, query string, arg a
 		if err := rows.Scan(
 			&item.ID, &item.TicketNumber, &item.Status, &item.SupplierCode,
 			&item.SupplierOfferID, &item.FareType, &item.RefundPolicyVersion,
-			&policy, &item.GrossAmount, &item.BonusRestored, &item.BonusRevoked,
-			&item.PayableAmount, &item.DepartureAt, &item.Reason,
-			&item.RefundPercent, &item.CashRefunded,
+			&policy, &item.GrossAmount, &item.DepartureAt, &item.Reason,
+			&item.RefundPercent, &item.SupplierRefundAmount,
 		); err != nil {
 			return nil, fmt.Errorf("scan refund operation item: %w", err)
 		}
 		item.Price = item.GrossAmount
-		item.BonusSpent = item.BonusRestored
-		item.BonusEarned = item.BonusRevoked
 		if err := json.Unmarshal(policy, &item.RefundPolicy); err != nil {
 			return nil, fmt.Errorf("decode refund operation policy: %w", err)
 		}

@@ -27,9 +27,6 @@ type QuoteItem struct {
 	RefundPercent     int    `json:"refund_percent"`
 	GrossAmount       int    `json:"gross_amount"`
 	GrossRefundAmount int    `json:"gross_refund_amount"`
-	CashRefunded      int    `json:"cash_refunded"`
-	BonusRestored     int    `json:"bonus_restored"`
-	BonusRevoked      int    `json:"bonus_revoked"`
 }
 
 type Result struct {

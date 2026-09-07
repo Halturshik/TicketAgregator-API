@@ -10,7 +10,8 @@ import (
 )
 
 const orderColumns = `
-	SELECT id, user_id, COALESCE(guest_payment_token::text, ''), status
+	SELECT id, user_id, COALESCE(guest_payment_token::text, ''), status,
+		current_total_price, bonus_spent, bonus_earned, payable_amount
 	FROM orders
 	WHERE id = $1
 `
@@ -18,7 +19,6 @@ const orderColumns = `
 const ticketColumns = `
 	SELECT t.id, t.ticket_number, t.status, t.supplier_code, t.supplier_offer_id, t.fare_type,
 		t.refund_policy_version, t.refund_policy_snapshot, t.price,
-		t.bonus_spent, t.bonus_earned, t.payable_amount,
 		(SELECT MIN(ts.departure_time) FROM ticket_segments ts WHERE ts.ticket_id = t.id)
 	FROM tickets t
 `

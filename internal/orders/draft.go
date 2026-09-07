@@ -7,10 +7,12 @@ import (
 )
 
 type CreateOrderParams struct {
+	OrderNumber       string
 	UserID            *int
 	GuestEmail        string
 	GuestPaymentToken string
 	TotalPrice        int
+	CurrentTotalPrice int
 	BonusSpent        int
 	BonusEarned       int
 	PayableAmount     int
@@ -40,8 +42,5 @@ type TicketDraft struct {
 	Transport           string
 	IsInternational     bool
 	Price               int
-	BonusSpent          int
-	BonusEarned         int
-	PayableAmount       int
 	Segments            []TicketSegmentSnapshot
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/Halturshik/TicketAgregator-API/internal/orders"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/refunds"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
@@ -18,7 +19,8 @@ func (s *Service) finalizeSuccess(
 		responseByID[item.TicketID] = item
 	}
 	err := s.repo.WithinTransaction(ctx, func(tx refunds.Transaction) error {
-		if _, err := tx.LockOrder(ctx, operation.Order.ID); err != nil {
+		order, err := tx.LockOrder(ctx, operation.Order.ID)
+		if err != nil {
 			return err
 		}
 		current, err := tx.LockOperation(ctx, operation.ID)
@@ -40,31 +42,48 @@ func (s *Service) finalizeSuccess(
 			Items: make([]refunds.SuccessItemParams, 0, len(current.Items)),
 		}
 		ids := make([]int, 0, len(current.Items))
+		refundedTicketTotal := 0
+		supplierRefundAmount := 0
 		for _, item := range current.Items {
 			supplierItem := responseByID[item.ID]
-			cash := supplierItem.RefundAmount - item.BonusSpent
-			if cash < 0 || cash > item.PayableAmount {
-				return refunds.ErrSupplierMismatch
-			}
-			success.CashAmount += cash
-			success.BonusRestored += item.BonusSpent
-			success.BonusRevoked += item.BonusEarned
+			refundedTicketTotal += item.GrossAmount
+			supplierRefundAmount += supplierItem.RefundAmount
 			success.Items = append(success.Items, refunds.SuccessItemParams{
 				TicketID: item.ID, Reason: supplierItem.Reason,
-				RefundPercent: supplierItem.RefundPercent, CashRefunded: cash,
-				BonusRestored: item.BonusSpent, BonusRevoked: item.BonusEarned,
+				RefundPercent:        supplierItem.RefundPercent,
+				SupplierRefundAmount: supplierItem.RefundAmount,
 			})
 			ids = append(ids, item.ID)
 		}
+		financials, err := calculateRefundFinancials(order, refundedTicketTotal, supplierRefundAmount)
+		if err != nil {
+			return err
+		}
+		success.CashAmount = financials.cashAmount
+		success.BonusRestored = financials.bonusRestored
+		success.BonusRevoked = financials.bonusRevoked
 		if err := tx.MarkTicketsRefunded(ctx, ids); err != nil {
 			return err
 		}
-		if _, err := tx.UpdateOrderStatus(ctx, current.Order.ID); err != nil {
+		totalTickets, refundedTickets, err := tx.CountRefundedTickets(ctx, current.Order.ID)
+		if err != nil {
 			return err
 		}
-		if current.Order.UserID != nil {
+		orderStatus, err := orderStatusAfterRefund(totalTickets, refundedTickets)
+		if err != nil {
+			return err
+		}
+		if err := tx.UpdateOrderAfterRefund(ctx, refunds.OrderRefundParams{
+			OrderID: current.Order.ID, Status: orderStatus,
+			CurrentTotalPrice: financials.currentTotalPrice,
+			BonusSpent:        financials.bonusSpent, BonusEarned: financials.bonusEarned,
+			PayableAmount: financials.payableAmount,
+		}); err != nil {
+			return err
+		}
+		if order.UserID != nil {
 			bonusResult, err := tx.ApplyBonus(ctx, refunds.BonusParams{
-				UserID: *current.Order.UserID, OrderID: current.Order.ID,
+				UserID: *order.UserID, OrderID: current.Order.ID,
 				RefundID: current.ID, RestoreAmount: success.BonusRestored,
 				RevokeAmount: success.BonusRevoked,
 			})
@@ -140,4 +159,17 @@ func (s *Service) finalizeFailure(
 	}
 	logger.Warn("Поставщик отклонил возврат: refundID=%d code=%s", failed.ID, failed.FailureCode)
 	return operationResult(failed), nil
+}
+
+func orderStatusAfterRefund(total int, refunded int) (string, error) {
+	if total <= 0 || refunded <= 0 || refunded > total {
+		return "", invalidFinancialState(
+			"ticket counts are total=%d refunded=%d",
+			total, refunded,
+		)
+	}
+	if total == refunded {
+		return orders.OrderStatusRefunded, nil
+	}
+	return orders.OrderStatusPartiallyRefunded, nil
 }

@@ -2,6 +2,7 @@ package orders
 
 import (
 	"context"
+	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
 	"github.com/Halturshik/TicketAgregator-API/internal/passengers"
@@ -10,12 +11,14 @@ import (
 
 type Service interface {
 	Create(ctx context.Context, userID *int, in CreateOrderInput) (*Order, error)
-	List(ctx context.Context, userID int, filter ListFilter) ([]Order, error)
+	List(ctx context.Context, userID int, filter ListFilter) (*HistoryPage, error)
+	CleanupExpired(ctx context.Context, limit int) (int, error)
 }
 
 type Repository interface {
 	Create(ctx context.Context, params CreateOrderParams) (*Order, error)
-	List(ctx context.Context, userID int, filter ListFilter) ([]Order, error)
+	List(ctx context.Context, userID int, filter ListFilter) (*HistoryPage, error)
+	DeleteExpired(ctx context.Context, before time.Time, limit int) (int, error)
 }
 
 type SearchReader interface {

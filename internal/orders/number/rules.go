@@ -11,4 +11,7 @@ const (
 
 	digitAlphabetSize  = 10
 	letterAlphabetSize = 26
+
+	orderPrefixLetters = 3
+	orderSuffixDigits  = 5
 )

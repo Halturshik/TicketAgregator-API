@@ -7,10 +7,14 @@ import (
 )
 
 type OrderData struct {
-	ID         int
-	UserID     *int
-	GuestToken string
-	Status     string
+	ID                int
+	UserID            *int
+	GuestToken        string
+	Status            string
+	CurrentTotalPrice int
+	BonusSpent        int
+	BonusEarned       int
+	PayableAmount     int
 }
 
 type TicketData struct {
@@ -23,9 +27,6 @@ type TicketData struct {
 	RefundPolicy        fare.RefundPolicy
 	RefundPolicyVersion int
 	Price               int
-	BonusSpent          int
-	BonusEarned         int
-	PayableAmount       int
 	DepartureAt         time.Time
 }
 
@@ -53,10 +54,8 @@ type Operation struct {
 
 type OperationItem struct {
 	TicketData
-	Reason        string
-	RefundPercent int
-	GrossAmount   int
-	CashRefunded  int
-	BonusRestored int
-	BonusRevoked  int
+	Reason               string
+	RefundPercent        int
+	GrossAmount          int
+	SupplierRefundAmount int
 }

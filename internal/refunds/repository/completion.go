@@ -12,11 +12,10 @@ func (t *transaction) MarkSuccess(ctx context.Context, params refunds.SuccessPar
 	for _, item := range params.Items {
 		result, err := t.tx.ExecContext(ctx, `
 			UPDATE refund_items
-			SET reason = $1, refund_percent = $2, cash_refunded = $3,
-				bonus_restored = $4, bonus_revoked = $5
-			WHERE refund_id = $6 AND ticket_id = $7
-		`, item.Reason, item.RefundPercent, item.CashRefunded,
-			item.BonusRestored, item.BonusRevoked, params.RefundID, item.TicketID)
+			SET reason = $1, refund_percent = $2, supplier_refund_amount = $3
+			WHERE refund_id = $4 AND ticket_id = $5
+		`, item.Reason, item.RefundPercent, item.SupplierRefundAmount,
+			params.RefundID, item.TicketID)
 		if err != nil {
 			return fmt.Errorf("update successful refund item: %w", err)
 		}
@@ -48,8 +47,7 @@ func (t *transaction) MarkFailed(ctx context.Context, params refunds.FailurePara
 	for _, item := range params.Items {
 		result, err := t.tx.ExecContext(ctx, `
 			UPDATE refund_items
-			SET reason = $1, refund_percent = 0, cash_refunded = 0,
-				bonus_restored = 0, bonus_revoked = 0
+			SET reason = $1, refund_percent = 0, supplier_refund_amount = 0
 			WHERE refund_id = $2 AND ticket_id = $3
 		`, item.Reason, params.RefundID, item.TicketID)
 		if err != nil {
@@ -79,7 +77,7 @@ func (t *transaction) MarkFailed(ctx context.Context, params refunds.FailurePara
 	return nil
 }
 
-func (t *transaction) UpdateOrderStatus(ctx context.Context, orderID int) (string, error) {
+func (t *transaction) CountRefundedTickets(ctx context.Context, orderID int) (int, int, error) {
 	var total int
 	var refunded int
 	if err := t.tx.QueryRowContext(ctx, `
@@ -87,26 +85,24 @@ func (t *transaction) UpdateOrderStatus(ctx context.Context, orderID int) (strin
 		FROM tickets
 		WHERE order_id = $1
 	`, orderID, orders.TicketStatusRefunded).Scan(&total, &refunded); err != nil {
-		return "", fmt.Errorf("count refunded tickets: %w", err)
+		return 0, 0, fmt.Errorf("count refunded tickets: %w", err)
 	}
-	if total == 0 || refunded == 0 {
-		return "", refunds.ErrTicketsMismatch
-	}
+	return total, refunded, nil
+}
 
-	status := orders.OrderStatusPartiallyRefunded
-	if total == refunded {
-		status = orders.OrderStatusRefunded
-	}
+func (t *transaction) UpdateOrderAfterRefund(ctx context.Context, params refunds.OrderRefundParams) error {
 	result, err := t.tx.ExecContext(ctx, `
 		UPDATE orders
-		SET status = $1
-		WHERE id = $2 AND status IN ($3, $4)
-	`, status, orderID, orders.OrderStatusPaid, orders.OrderStatusPartiallyRefunded)
+		SET status = $1, current_total_price = $2, bonus_spent = $3,
+			bonus_earned = $4, payable_amount = $5
+		WHERE id = $6 AND status IN ($7, $8)
+	`, params.Status, params.CurrentTotalPrice, params.BonusSpent, params.BonusEarned,
+		params.PayableAmount, params.OrderID, orders.OrderStatusPaid, orders.OrderStatusPartiallyRefunded)
 	if err != nil {
-		return "", fmt.Errorf("update refunded order status: %w", err)
+		return fmt.Errorf("update refunded order status: %w", err)
 	}
 	if err := requireAffectedRows(result, 1); err != nil {
-		return "", fmt.Errorf("update refunded order status: %w", err)
+		return fmt.Errorf("update refunded order status: %w", err)
 	}
-	return status, nil
+	return nil
 }

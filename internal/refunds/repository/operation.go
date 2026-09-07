@@ -13,7 +13,8 @@ const operationColumns = `
 		r.next_retry_at, r.reconciliation_deadline,
 		r.cash_amount, r.bonus_restored, r.bonus_revoked,
 		r.bonus_balance_after, r.bonus_debt_after,
-		o.id, o.user_id, COALESCE(o.guest_payment_token::text, ''), o.status
+		o.id, o.user_id, COALESCE(o.guest_payment_token::text, ''), o.status,
+		o.current_total_price, o.bonus_spent, o.bonus_earned, o.payable_amount
 	FROM refunds r
 	JOIN orders o ON o.id = r.order_id
 `

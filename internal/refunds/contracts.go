@@ -30,8 +30,9 @@ type Transaction interface {
 	MarkTicketsPending(ctx context.Context, ticketIDs []int) error
 	MarkTicketsRefunded(ctx context.Context, ticketIDs []int) error
 	RestoreTicketsPaid(ctx context.Context, ticketIDs []int) error
+	CountRefundedTickets(ctx context.Context, orderID int) (total int, refunded int, err error)
 	MarkSuccess(ctx context.Context, params SuccessParams) error
 	MarkFailed(ctx context.Context, params FailureParams) error
-	UpdateOrderStatus(ctx context.Context, orderID int) (string, error)
+	UpdateOrderAfterRefund(ctx context.Context, params OrderRefundParams) error
 	ApplyBonus(ctx context.Context, params BonusParams) (*BonusResult, error)
 }
