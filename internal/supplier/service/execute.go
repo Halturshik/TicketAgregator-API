@@ -5,12 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/fare"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search/provider"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 	"github.com/google/uuid"
@@ -64,14 +64,17 @@ func (s *Service) ExecuteRefund(ctx context.Context, request supplier.ExecuteRef
 		return nil, supplier.ErrIdempotencyConflict
 	}
 	if created && stored.Status == supplier.RefundStatusRejected {
-		logger.Warn(
-			"Поставщик отклонил возврат: supplier=%s supplierRefundID=%s tickets=%d code=%s",
-			stored.ProviderCode, stored.ID, len(stored.Items), stored.FailureCode,
+		slog.WarnContext(ctx, "Поставщик отклонил возврат",
+			slog.String("supplier_code", stored.ProviderCode),
+			slog.String("supplier_refund_id", stored.ID),
+			slog.Int("tickets", len(stored.Items)),
+			slog.String("failure_code", stored.FailureCode),
 		)
 	} else if created {
-		logger.Info(
-			"Поставщик выполнил возврат: supplier=%s supplierRefundID=%s tickets=%d",
-			stored.ProviderCode, stored.ID, len(stored.Items),
+		slog.InfoContext(ctx, "Поставщик выполнил возврат",
+			slog.String("supplier_code", stored.ProviderCode),
+			slog.String("supplier_refund_id", stored.ID),
+			slog.Int("tickets", len(stored.Items)),
 		)
 	}
 	return operationResult(*stored), nil

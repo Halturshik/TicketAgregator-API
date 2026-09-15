@@ -8,7 +8,6 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/fare"
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
 
@@ -56,8 +55,7 @@ func selectTripOption(all []search.TripOption, id string) (*search.TripOption, e
 func validateTripOption(searchID string, option search.TripOption, passengerCount int) ([]search.Offer, int, error) {
 	expectedPolicy, validPolicy := fare.Policy(option.FareType)
 	if option.SupplierCode == "" || option.SupplierOfferID == "" || !validPolicy || !reflect.DeepEqual(option.RefundPolicy, expectedPolicy) {
-		logger.Error("Некорректные supplier-данные предложения в кеше: searchID=%s tripOptionID=%s", searchID, option.ID)
-		return nil, 0, fmt.Errorf("invalid cached supplier offer %s", option.ID)
+		return nil, 0, fmt.Errorf("invalid cached supplier offer: search_id=%s trip_option_id=%s", searchID, option.ID)
 	}
 	directions := []search.Offer{option.Outbound}
 	if option.Return != nil {
@@ -68,19 +66,19 @@ func validateTripOption(searchID string, option search.TripOption, passengerCoun
 	usedRouteNumbers := make(map[string]struct{})
 	for _, direction := range directions {
 		if err := validateDirection(option, direction, passengerCount, usedRouteNumbers); err != nil {
-			logger.Error("Некорректное предложение в кеше: searchID=%s tripOptionID=%s offerID=%s: %v", searchID, option.ID, direction.ID, err)
-			return nil, 0, fmt.Errorf("invalid cached offer %s: %w", direction.ID, err)
+			return nil, 0, fmt.Errorf(
+				"invalid cached offer: search_id=%s trip_option_id=%s offer_id=%s: %w",
+				searchID, option.ID, direction.ID, err,
+			)
 		}
 		total += direction.Price
 		pricePerPassenger += direction.PricePerPassenger
 	}
 	if option.Price != total || option.PricePerPassenger != pricePerPassenger || option.Transport != option.Outbound.Transport {
-		logger.Error("Некорректная итоговая цена варианта в кеше: searchID=%s tripOptionID=%s", searchID, option.ID)
-		return nil, 0, fmt.Errorf("invalid cached trip option totals %s", option.ID)
+		return nil, 0, fmt.Errorf("invalid cached trip option totals: search_id=%s trip_option_id=%s", searchID, option.ID)
 	}
 	if err := validateReturn(option); err != nil {
-		logger.Error("Некорректный обратный маршрут в кеше: searchID=%s tripOptionID=%s: %v", searchID, option.ID, err)
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("invalid cached return route: search_id=%s trip_option_id=%s: %w", searchID, option.ID, err)
 	}
 	return directions, total, nil
 }

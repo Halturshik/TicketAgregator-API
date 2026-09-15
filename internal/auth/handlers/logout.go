@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/httpx"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) error {
@@ -13,7 +13,9 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) error {
 
 	if refreshToken != "" {
 		if err := h.service.Logout(r.Context(), refreshToken); err != nil {
-			logger.Warn("Не удалось полностью инвалидировать refresh-токен при logout: %v", err)
+			slog.WarnContext(r.Context(), "Не удалось полностью инвалидировать refresh-токен при logout",
+				slog.Any("error", err),
+			)
 		}
 	}
 

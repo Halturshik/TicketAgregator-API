@@ -2,32 +2,57 @@ package logger
 
 import (
 	"fmt"
-	"log"
+	"io"
+	"log/slog"
 	"os"
-	"time"
+	"strings"
 )
 
-var (
-	infoLogger  = log.New(os.Stdout, "", 0)
-	warnLogger  = log.New(os.Stdout, "", 0)
-	errorLogger = log.New(os.Stderr, "", 0)
+const (
+	FormatText = "text"
+	FormatJSON = "json"
+
+	DefaultFormat = FormatText
+	DefaultLevel  = "info"
 )
 
-func Info(msg string, args ...any) {
-	infoLogger.Printf("[%s] [INFO]  %s", time.Now().Format("2006-01-02 15:04:05"), format(msg, args...))
+type Options struct {
+	Service string
+	Format  string
+	Level   string
+	Output  io.Writer
 }
 
-func Warn(msg string, args ...any) {
-	warnLogger.Printf("[%s] [WARN]  %s", time.Now().Format("2006-01-02 15:04:05"), format(msg, args...))
-}
-
-func Error(msg string, args ...any) {
-	errorLogger.Printf("[%s] [ERROR] %s", time.Now().Format("2006-01-02 15:04:05"), format(msg, args...))
-}
-
-func format(msg string, args ...any) string {
-	if len(args) > 0 {
-		return fmt.Sprintf(msg, args...)
+func New(options Options) (*slog.Logger, error) {
+	if options.Service == "" {
+		return nil, fmt.Errorf("название сервиса логирования не указано")
 	}
-	return msg
+	if options.Format == "" {
+		options.Format = DefaultFormat
+	}
+	if options.Level == "" {
+		options.Level = DefaultLevel
+	}
+	if options.Output == nil {
+		options.Output = os.Stdout
+	}
+
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(strings.ToUpper(options.Level))); err != nil {
+		return nil, fmt.Errorf("некорректный уровень логирования %q: %w", options.Level, err)
+	}
+	handlerOptions := &slog.HandlerOptions{Level: level}
+
+	var handler slog.Handler
+	switch strings.ToLower(options.Format) {
+	case FormatText:
+		handler = slog.NewTextHandler(options.Output, handlerOptions)
+	case FormatJSON:
+		handler = slog.NewJSONHandler(options.Output, handlerOptions)
+	default:
+		return nil, fmt.Errorf("неподдерживаемый формат логирования %q", options.Format)
+	}
+
+	handler = contextHandler{Handler: handler}
+	return slog.New(handler).With(slog.String("service", options.Service)), nil
 }

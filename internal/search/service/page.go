@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
 
@@ -19,7 +18,6 @@ func (s *Service) GetPage(ctx context.Context, searchID string, offset int, limi
 		return nil, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка получения кеша поиска searchID=%s: %v", searchID, err)
 		return nil, err
 	}
 	return s.page(result, offset, limit, userID), nil

@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/validator"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/users"
 )
 
@@ -39,10 +39,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID int, in users.Update
 		return nil, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка при обновлении профиля пользователя userID=%d: %v", userID, err)
 		return nil, err
 	}
 
-	logger.Info("Профиль пользователя обновлен: userID=%d", userID)
+	slog.InfoContext(ctx, "Профиль пользователя обновлён", slog.Int("user_id", userID))
 	return profile, nil
 }

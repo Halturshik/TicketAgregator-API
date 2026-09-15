@@ -1,6 +1,9 @@
 package repository
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 func (r *Repository) Delete(ctx context.Context, ownerUserID int, documentID int) error {
 	result, err := r.DB.ExecContext(ctx, `
@@ -14,7 +17,10 @@ func (r *Repository) Delete(ctx context.Context, ownerUserID int, documentID int
 		)
 	`, documentID, ownerUserID)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete document: %w", err)
 	}
-	return requireSingleRow(result)
+	if err := requireSingleRow(result); err != nil {
+		return fmt.Errorf("delete document result: %w", err)
+	}
+	return nil
 }

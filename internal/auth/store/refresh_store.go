@@ -2,9 +2,10 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,8 +21,7 @@ func (s *RefreshStore) Save(ctx context.Context, userID int64, refreshToken stri
 	hash := token.HashToken(refreshToken)
 	key := RefreshKey(hash)
 	if err := s.redis.Set(ctx, key, userID, token.RefreshTokenTTL).Err(); err != nil {
-		logger.Error("Ошибка при сохранении в redis refresh-токена для userID: %v: %v", userID, err)
-		return err
+		return fmt.Errorf("save refresh token for user %d: %w", userID, err)
 	}
 
 	return nil
@@ -31,8 +31,7 @@ func (s *RefreshStore) Delete(ctx context.Context, refreshToken string) error {
 	hash := token.HashToken(refreshToken)
 	key := RefreshKey(hash)
 	if err := s.redis.Del(ctx, key).Err(); err != nil {
-		logger.Error("Ошибка при удалении refresh-токена: %v", err)
-		return err
+		return fmt.Errorf("delete refresh token: %w", err)
 	}
 
 	return nil
@@ -41,12 +40,13 @@ func (s *RefreshStore) Delete(ctx context.Context, refreshToken string) error {
 func (s *RefreshStore) AddToUserSet(ctx context.Context, userID int64, tokenHash string) error {
 	key := RefreshUserSetKey(userID)
 	if err := s.redis.SAdd(ctx, key, tokenHash).Err(); err != nil {
-		logger.Error("Ошибка при сохранении refresh-токена в список redis по userID: %d: %v", userID, err)
-		return err
+		return fmt.Errorf("add refresh token to user %d set: %w", userID, err)
 	}
 
-	s.redis.Expire(ctx, key, token.RefreshTokenTTL*2)
-	logger.Info("Refresh-токен сохранен в список redis по userID: %v", userID)
+	if err := s.redis.Expire(ctx, key, token.RefreshTokenTTL*2).Err(); err != nil {
+		return fmt.Errorf("set refresh token set ttl for user %d: %w", userID, err)
+	}
+	slog.DebugContext(ctx, "Refresh-токен добавлен в список пользователя", slog.Int64("user_id", userID))
 	return nil
 }
 
@@ -54,13 +54,12 @@ func (s *RefreshStore) RemoveFromUserSet(ctx context.Context, userID int64, toke
 	key := RefreshUserSetKey(userID)
 	removed, err := s.redis.SRem(ctx, key, tokenHash).Result()
 	if err != nil {
-		logger.Error("Ошибка при удалении refresh-токена из списка в redis по userID: %d: %v", userID, err)
-		return err
+		return fmt.Errorf("remove refresh token from user %d set: %w", userID, err)
 	}
 	if removed == 0 {
-		logger.Warn("Refresh-токен не найден из списка в redis при удалении по userID: %d", userID)
+		slog.WarnContext(ctx, "Refresh-токен не найден в списке пользователя", slog.Int64("user_id", userID))
 	} else {
-		logger.Info("Refresh-токен успешно удалён из списка в redis по userID %d", userID)
+		slog.DebugContext(ctx, "Refresh-токен удалён из списка пользователя", slog.Int64("user_id", userID))
 	}
 	return nil
 }
@@ -70,22 +69,26 @@ func (s *RefreshStore) DeleteAllForUser(ctx context.Context, userID int64) error
 
 	hashes, err := s.redis.SMembers(ctx, setKey).Result()
 	if err != nil && err != redis.Nil {
-		logger.Error("Ошибка при получении всех хэшей refresh-токенов из списка в redis по userID %d: %v", userID, err)
-		return err
+		return fmt.Errorf("list refresh tokens for user %d: %w", userID, err)
 	}
 
 	for _, hash := range hashes {
 		tokenKey := RefreshKey(hash)
 		if err := s.redis.Del(ctx, tokenKey).Err(); err != nil {
-			logger.Error("Ошибка при удалении refresh-ключа (%s) из redis по userID %d: %v", hash[:8], userID, err)
+			slog.ErrorContext(ctx, "Ошибка удаления refresh-токена пользователя",
+				slog.Int64("user_id", userID),
+				slog.Any("error", err),
+			)
 		}
 	}
 
 	if err := s.redis.Del(ctx, setKey).Err(); err != nil {
-		logger.Error("Ошибка при удалении списка активных refresh-токенов в redis по userID %d: %v", userID, err)
-		return err
+		return fmt.Errorf("delete refresh token set for user %d: %w", userID, err)
 	}
 
-	logger.Info("Все refresh-токены userID (%d) удалены (Set + %d ключей)", userID, len(hashes))
+	slog.InfoContext(ctx, "Все refresh-токены пользователя удалены",
+		slog.Int64("user_id", userID),
+		slog.Int("token_count", len(hashes)),
+	)
 	return nil
 }

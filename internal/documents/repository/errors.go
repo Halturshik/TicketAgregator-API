@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
 	"github.com/lib/pq"
@@ -18,5 +19,5 @@ func mapDocumentWriteError(err error) error {
 	if errors.As(err, &pqErr) && pqErr.Code == uniqueViolationCode {
 		return documents.ErrAlreadyExists
 	}
-	return err
+	return fmt.Errorf("write document: %w", err)
 }

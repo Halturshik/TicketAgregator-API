@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
 )
@@ -29,7 +30,7 @@ func (r *Repository) FindRule(ctx context.Context, transport string, isInternati
 		return nil, documents.ErrRuleNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find document rule: %w", err)
 	}
 	return &rule, nil
 }

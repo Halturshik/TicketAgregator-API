@@ -1,6 +1,9 @@
 package repository
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 func (r *Repository) UpdatePassword(ctx context.Context, userID int, hash string) (int, error) {
 	var newVersion int
@@ -15,5 +18,8 @@ func (r *Repository) UpdatePassword(ctx context.Context, userID int, hash string
 		userID,
 	).Scan(&newVersion)
 
-	return newVersion, err
+	if err != nil {
+		return 0, fmt.Errorf("update password: %w", err)
+	}
+	return newVersion, nil
 }

@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 )
 
@@ -24,7 +24,6 @@ func (s *Service) Search(ctx context.Context, transport string, in search.Search
 	total := generatedOffersCount(searchDate, dateOnly(now), now.UnixNano())
 	items, err := s.generateTripOptions(ctx, transport, in, route, total, now.UnixNano())
 	if err != nil {
-		logger.Error("Ошибка генерации mock-предложений: %v", err)
 		return nil, err
 	}
 	cached, err := s.cacheSearchResult(ctx, in, items)
@@ -32,6 +31,10 @@ func (s *Service) Search(ctx context.Context, transport string, in search.Search
 		return nil, err
 	}
 
-	logger.Info("Сгенерирован результат поиска searchID=%s total=%d transport=%s", cached.SearchID, cached.Total, transport)
+	slog.InfoContext(ctx, "Сгенерирован результат поиска билетов",
+		slog.String("search_id", cached.SearchID),
+		slog.Int("total", cached.Total),
+		slog.String("transport", transport),
+	)
 	return s.page(cached, in.Offset, in.Limit, userID), nil
 }

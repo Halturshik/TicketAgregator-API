@@ -7,14 +7,25 @@ import (
 )
 
 type APIError struct {
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Status  int               `json:"-"`
-	Fields  map[string]string `json:"fields,omitempty"`
+	Code     string            `json:"code"`
+	Message  string            `json:"message"`
+	Status   int               `json:"-"`
+	Fields   map[string]string `json:"fields,omitempty"`
+	cause    error
+	template *APIError
 }
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Code, e.Message)
+}
+
+func (e *APIError) Unwrap() error {
+	return e.cause
+}
+
+func (e *APIError) Is(target error) bool {
+	targetAPIError, ok := target.(*APIError)
+	return ok && (e == targetAPIError || e.template == targetAPIError)
 }
 
 const (
@@ -197,18 +208,35 @@ func Wrap(err error, fallback *APIError) *APIError {
 	if err == nil {
 		return nil
 	}
+	if fallback == nil {
+		fallback = ErrInternal
+	}
 
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
-		return apiErr
+		if err == apiErr {
+			return apiErr
+		}
+		wrapped := *apiErr
+		wrapped.cause = err
+		if wrapped.template == nil {
+			wrapped.template = apiErr
+		}
+		return &wrapped
 	}
 
-	switch {
-	case errors.Is(err, ErrInternal):
-		return ErrInternal
-	}
+	wrapped := *fallback
+	wrapped.cause = err
+	wrapped.template = fallback
+	return &wrapped
+}
 
-	return fallback
+func Cause(err error) error {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.cause != nil {
+		return apiErr.cause
+	}
+	return err
 }
 
 func Validation(fields map[string]string) *APIError {

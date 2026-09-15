@@ -7,7 +7,6 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) resolveBookingDocument(ctx context.Context, in documents.BookingValidationInput) (*documents.ValidatedBookingDocument, error) {
@@ -26,7 +25,6 @@ func (s *Service) resolveBookingDocument(ctx context.Context, in documents.Booki
 		return nil, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка проверки принадлежности документа userID=%d documentID=%d: %v", *in.OwnerUserID, *in.Document.ID, err)
 		return nil, err
 	}
 	return &documents.ValidatedBookingDocument{

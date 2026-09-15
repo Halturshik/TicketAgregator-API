@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
 )
@@ -9,7 +10,7 @@ import (
 func requireSingleRow(result sql.Result) error {
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("count affected document rows: %w", err)
 	}
 	if affected != 1 {
 		return documents.ErrNotFound

@@ -2,25 +2,29 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/refunds"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 )
 
 func (s *Service) execute(ctx context.Context, operation *refunds.Operation) (*refunds.Result, error) {
 	if err := validateProcessingOperation(operation); err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	response, err := s.supplier.ExecuteRefund(ctx, supplierRequest(operation))
 	if err != nil {
-		operation = s.recordAttemptError(operation, err)
-		logger.Warn("Поставщик не подтвердил возврат: refundID=%d supplier=%s: %v", operation.ID, operation.SupplierCode, err)
+		operation = s.recordAttemptError(ctx, operation, err)
+		slog.WarnContext(ctx, "Не удалось получить от поставщика ответ для возврата",
+			slog.Int("refund_id", operation.ID),
+			slog.String("supplier_code", operation.SupplierCode),
+			slog.Any("error", err),
+		)
 		return operationResult(operation), nil
 	}
 	if err := validateSupplierExecution(operation, response); err != nil {
-		s.recordAttemptError(operation, err)
-		return nil, mapError(err)
+		s.recordAttemptError(ctx, operation, err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	if response.Status == supplier.RefundStatusRejected {
 		return s.finalizeFailure(ctx, operation, response)

@@ -3,9 +3,9 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,13 +26,11 @@ func (s *RegistrationStore) key(email string) string {
 func (s *RegistrationStore) Save(ctx context.Context, email string, data auth.PendingRegistration) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
-		logger.Error("Ошибка при сериализации регистрационных данных для %s: %v", email, err)
-		return err
+		return fmt.Errorf("marshal pending registration: %w", err)
 	}
 
 	if err := s.redis.Set(ctx, s.key(email), bytes, RegistrationTTL).Err(); err != nil {
-		logger.Error("Ошибка при сохранении в redis регистрационных данных для %s: %v", email, err)
-		return err
+		return fmt.Errorf("save pending registration: %w", err)
 	}
 
 	return nil
@@ -41,14 +39,12 @@ func (s *RegistrationStore) Save(ctx context.Context, email string, data auth.Pe
 func (s *RegistrationStore) Get(ctx context.Context, email string) (*auth.PendingRegistration, error) {
 	data, err := s.redis.Get(ctx, s.key(email)).Bytes()
 	if err != nil {
-		logger.Error("Ошибка при получения регистрационных данных из redis для %s: %v", email, err)
-		return nil, err
+		return nil, fmt.Errorf("get pending registration: %w", err)
 	}
 
 	var result auth.PendingRegistration
 	if err := json.Unmarshal(data, &result); err != nil {
-		logger.Error("Ошибка при десериализации регистрационных данных для %s: %v", email, err)
-		return nil, err
+		return nil, fmt.Errorf("unmarshal pending registration: %w", err)
 	}
 
 	return &result, nil
@@ -56,8 +52,7 @@ func (s *RegistrationStore) Get(ctx context.Context, email string) (*auth.Pendin
 
 func (s *RegistrationStore) Delete(ctx context.Context, email string) error {
 	if err := s.redis.Del(ctx, s.key(email)).Err(); err != nil {
-		logger.Error("Ошибка при удалении регистрационных данных из redis для %s: %v", email, err)
-		return err
+		return fmt.Errorf("delete pending registration: %w", err)
 	}
 
 	return nil

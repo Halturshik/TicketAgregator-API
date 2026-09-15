@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
@@ -19,7 +20,11 @@ func runOrderCleanup(ctx context.Context, service orders.Service) {
 		defer cancel()
 		for {
 			deleted, err := service.CleanupExpired(cleanupCtx, orderCleanupBatch)
-			if err != nil || deleted < orderCleanupBatch {
+			if err != nil {
+				slog.ErrorContext(cleanupCtx, "Ошибка фоновой очистки заказов", slog.Any("error", err))
+				return
+			}
+			if deleted < orderCleanupBatch {
 				return
 			}
 		}

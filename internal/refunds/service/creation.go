@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/refunds"
 )
 
@@ -71,7 +71,11 @@ func (s *Service) createOperation(
 		if err := tx.MarkTicketsPending(ctx, ticketIDs(lockedTickets)); err != nil {
 			return err
 		}
-		logger.Info("Возврат подготовлен: refundID=%d orderID=%d tickets=%d", refundID, orderID, len(lockedTickets))
+		slog.InfoContext(ctx, "Возврат подготовлен",
+			slog.Int("refund_id", refundID),
+			slog.Int("order_id", orderID),
+			slog.Int("tickets", len(lockedTickets)),
+		)
 		return nil
 	})
 	return created, err

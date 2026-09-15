@@ -3,10 +3,10 @@ package redis
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -24,6 +24,6 @@ func RedisConnection(cfg *config.Config) (*redis.Client, error) {
 		return nil, fmt.Errorf("не удалось соединиться с Redis: %w", err)
 	}
 
-	logger.Info("Соединение с Redis установлено")
+	slog.Info("Соединение с Redis установлено")
 	return rdb, nil
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
@@ -10,7 +11,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/validator"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
+	platformlogger "github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) ForgotPassword(ctx context.Context, email string) error {
@@ -28,18 +29,18 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 
 	exists, err := s.store.IsEmailExists(ctx, email)
 	if err != nil {
-		logger.Error("Ошибка при проверке существования email %s: %v", email, err)
 		return err
 	}
 
 	if !exists {
-		logger.Warn("Попытка смены пароля у незарегистрированного email: %s", email)
+		slog.WarnContext(ctx, "Запрошено восстановление пароля для незарегистрированного email",
+			slog.String("email", platformlogger.MaskEmail(email)),
+		)
 		return nil
 	}
 
 	code, err := s.codeGenerator.GenerateVerificationCode()
 	if err != nil {
-		logger.Warn("Ошибка при генерации кода для %s: %v", email, err)
 		return err
 	}
 
@@ -92,7 +93,9 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	}
 
 	if !ok {
-		logger.Warn("Попытка смены пароля без подтверждённого кода для email: %s", in.Email)
+		slog.WarnContext(ctx, "Попытка смены пароля без подтверждённого кода",
+			slog.String("email", platformlogger.MaskEmail(in.Email)),
+		)
 		return nil, apierror.ErrUnauthorized
 	}
 
@@ -101,7 +104,6 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 		if errors.Is(err, auth.ErrUserNotFound) {
 			return nil, apierror.ErrInvalidCredentials
 		}
-		logger.Error("Ошибка при получении пользователя по email %s: %v", in.Email, err)
 		return nil, err
 	}
 
@@ -111,7 +113,6 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 
 	hashPassword, err := password.HashPassword(in.Password)
 	if err != nil {
-		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return nil, err
 	}
 
@@ -120,30 +121,36 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 		return nil, err
 	}
 	if !consumed {
-		logger.Warn("Повторная попытка использовать подтверждение смены пароля для email: %s", in.Email)
+		slog.WarnContext(ctx, "Повторная попытка использовать подтверждение для смены пароля",
+			slog.String("email", platformlogger.MaskEmail(in.Email)),
+		)
 		return nil, apierror.ErrUnauthorized
 	}
 
 	newVersion, err := s.store.UpdatePassword(ctx, user.ID, hashPassword)
 	if err != nil {
-		logger.Error("Ошибка при обновлении пароля в БД для %s: %v", in.Email, err)
 		return nil, err
 	}
 
-	logger.Info("Пароль изменён для userID/email: %v/%s", user.ID, in.Email)
+	slog.InfoContext(ctx, "Пароль пользователя изменён",
+		slog.Int("user_id", user.ID),
+		slog.String("email", platformlogger.MaskEmail(in.Email)),
+	)
 
 	if err := s.refreshStore.DeleteAllForUser(ctx, int64(user.ID)); err != nil {
+		slog.ErrorContext(ctx, "Не удалось удалить прежние refresh-токены после смены пароля",
+			slog.Int("user_id", user.ID),
+			slog.Any("error", err),
+		)
 	}
 
 	accessToken, err := s.jwt.GenerateAccessToken(user.ID, newVersion)
 	if err != nil {
-		logger.Error("Ошибка при генерации access-токен для userID %v: %v", user.ID, err)
 		return nil, err
 	}
 
 	refreshToken, err := s.jwt.GenerateRefreshToken(user.ID, newVersion)
 	if err != nil {
-		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", user.ID, err)
 		return nil, err
 	}
 
@@ -154,6 +161,10 @@ func (s *Service) ResetPassword(ctx context.Context, in auth.ChangePasswordConfi
 	hashToken := token.HashToken(refreshToken)
 
 	if err := s.refreshStore.AddToUserSet(ctx, int64(user.ID), hashToken); err != nil {
+		slog.ErrorContext(ctx, "Не удалось добавить новый refresh-токен в список пользователя после смены пароля",
+			slog.Int("user_id", user.ID),
+			slog.Any("error", err),
+		)
 	}
 
 	return &auth.LoginOutput{

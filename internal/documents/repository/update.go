@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
@@ -49,7 +50,10 @@ func (r *Repository) UpdateVerification(ctx context.Context, documentID int, sta
 		WHERE id = $1
 	`, documentID, status, checkedAt)
 	if err != nil {
-		return err
+		return fmt.Errorf("update document verification: %w", err)
 	}
-	return requireSingleRow(result)
+	if err := requireSingleRow(result); err != nil {
+		return fmt.Errorf("update document verification result: %w", err)
+	}
+	return nil
 }

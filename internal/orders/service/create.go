@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) Create(ctx context.Context, userID *int, in orders.CreateOrderInput) (*orders.Order, error) {
@@ -44,12 +44,15 @@ func (s *Service) Create(ctx context.Context, userID *int, in orders.CreateOrder
 		Tickets:           tickets,
 	})
 	if err != nil {
-		logger.Error("Ошибка создания заказа: %v", err)
 		return nil, err
 	}
-	logger.Info(
-		"Заказ создан: orderID=%d orderNumber=%s tickets=%d passengers=%d total=%d payable=%d",
-		order.ID, order.OrderNumber, len(order.Tickets), len(passengers), order.TotalPrice, order.PayableAmount,
+	slog.InfoContext(ctx, "Заказ создан",
+		slog.Int("order_id", order.ID),
+		slog.String("order_number", order.OrderNumber),
+		slog.Int("tickets", len(order.Tickets)),
+		slog.Int("passengers", len(passengers)),
+		slog.Int("total_price", order.TotalPrice),
+		slog.Int("payable_amount", order.PayableAmount),
 	)
 	return order, nil
 }

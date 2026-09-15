@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"net/http"
+	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,7 +38,7 @@ import (
 	paymentprovider "github.com/Halturshik/TicketAgregator-API/internal/payments/provider"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/codegen"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
+	platformlogger "github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/mailer"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/postgres"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/ratelimit"
@@ -62,24 +63,43 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		logger.Warn(".env файл не найден, будут использоваться переменные окружения")
+	if err := run(); err != nil {
+		slog.Error("Приложение завершено с ошибкой", slog.Any("error", err))
+		os.Exit(1)
 	}
+}
+
+func run() error {
+	dotenvErr := godotenv.Load()
+	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		logger.Error("Ошибка загрузки конфигурации: %v", err)
+		return fmt.Errorf("загрузка конфигурации: %w", err)
+	}
+	log, err := platformlogger.New(platformlogger.Options{
+		Service: "ticket-api",
+		Format:  cfg.LogFormat,
+		Level:   cfg.LogLevel,
+	})
+	if err != nil {
+		return fmt.Errorf("инициализация логирования: %w", err)
+	}
+	slog.SetDefault(log)
+	if dotenvErr != nil {
+		slog.Warn(".env файл не найден, будут использоваться переменные окружения")
 	}
 
 	dbConnection, err := postgres.ConnectDB(cfg)
 	if err != nil {
-		logger.Error("Ошибка при подключении к БД: %v", err)
+		return fmt.Errorf("инициализация PostgreSQL: %w", err)
 	}
 	defer dbConnection.Close()
 
 	redisClient, err := redis.RedisConnection(cfg)
 	if err != nil {
-		logger.Error("Ошибка при подключении к Redis: %v", err)
+		return fmt.Errorf("инициализация Redis: %w", err)
 	}
 	defer redisClient.Close()
 
@@ -120,17 +140,15 @@ func main() {
 	documentHandler := documenthandlers.New(documentSvc)
 
 	searchRepository := searchrepo.NewRepository(infraStore.DB)
-	bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	bootstrapCtx, bootstrapCancel := context.WithTimeout(signalCtx, 5*time.Second)
 	carriers, err := searchRepository.ListCarriers(bootstrapCtx)
 	bootstrapCancel()
 	if err != nil {
-		logger.Error("Ошибка загрузки перевозчиков: %v", err)
-		return
+		return fmt.Errorf("загрузка перевозчиков: %w", err)
 	}
 	supplierClient, supplierConnection, err := suppliergrpc.Dial(cfg.SupplierGRPCAddress)
 	if err != nil {
-		logger.Error("Ошибка инициализации gRPC-клиента поставщиков: %v", err)
-		return
+		return fmt.Errorf("инициализация gRPC-клиента поставщиков: %w", err)
 	}
 	defer supplierConnection.Close()
 	searchSvc, err := searchservice.NewService(
@@ -141,8 +159,7 @@ func main() {
 		carriers,
 	)
 	if err != nil {
-		logger.Error("Ошибка инициализации поиска: %v", err)
-		return
+		return fmt.Errorf("инициализация поиска: %w", err)
 	}
 	searchHandler := searchhandlers.New(searchSvc)
 
@@ -151,9 +168,6 @@ func main() {
 		orderrepo.NewRepository(infraStore.DB), searchSvc, documentSvc, passengerSvc, bonusRepository,
 	)
 	orderHandler := orderhandlers.New(orderSvc)
-	orderCleanupCtx, stopOrderCleanup := context.WithCancel(context.Background())
-	defer stopOrderCleanup()
-	go runOrderCleanup(orderCleanupCtx, orderSvc)
 
 	checkoutSvc := checkoutservice.NewService(
 		checkoutrepo.NewRepository(infraStore.DB),
@@ -177,9 +191,6 @@ func main() {
 	)
 	bookingHandler := bookingaccesshandlers.New(bookingAccessSvc)
 	tripHandler := triphandlers.New(tripservice.NewService(triprepo.NewRepository(infraStore.DB)))
-	reconciliationCtx, stopReconciliation := context.WithCancel(context.Background())
-	defer stopReconciliation()
-	go runRefundReconciliation(reconciliationCtx, refundSvc)
 	rateLimitMiddleware := app.NewRateLimitMiddleware(ratelimit.New(redisClient))
 
 	apiServer := app.NewAPI(
@@ -199,35 +210,17 @@ func main() {
 	)
 
 	r := chi.NewRouter()
+	r.Use(platformlogger.HTTPMiddleware)
 	apiServer.Init(r)
-	// r.Use(api.LoggingMiddleware)
+	healthHandler := newHealthHandler(dbConnection, redisClient, supplierConnection)
+	r.Get("/health/live", healthHandler.Live)
+	r.Get("/health/ready", healthHandler.Ready)
 
-	srv := &http.Server{
-		Addr:    ":" + cfg.AppPort,
-		Handler: r,
-	}
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		logger.Info("Сервер запущен на порту %s", cfg.AppPort)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Ошибка при запуске сервера: %v", err)
-		}
-	}()
-
-	sig := <-stop
-	logger.Warn("Получен сигнал завершения: %v, останавливаю сервер...", sig)
-	stopReconciliation()
-	stopOrderCleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Ошибка при остановке сервера: %v", err)
-	} else {
-		logger.Info("Сервер успешно остановлен")
-	}
+	return runAPIServer(
+		signalCtx,
+		cfg.AppPort,
+		r,
+		func(ctx context.Context) { runOrderCleanup(ctx, orderSvc) },
+		func(ctx context.Context) { runRefundReconciliation(ctx, refundSvc) },
+	)
 }

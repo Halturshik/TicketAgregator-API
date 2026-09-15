@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/checkout"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
 	"github.com/Halturshik/TicketAgregator-API/internal/payments"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) Pay(ctx context.Context, userID *int, orderID int, guestPaymentToken string) (*checkout.PayOutput, error) {
@@ -16,18 +17,17 @@ func (s *Service) Pay(ctx context.Context, userID *int, orderID int, guestPaymen
 	}
 	success, err := s.provider.Process(ctx)
 	if err != nil {
-		logger.Error("Ошибка генерации результата mock-оплаты: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("generate mock payment result: %w", err)
 	}
 	outcome, err := s.processPayment(ctx, userID, orderID, guestPaymentToken, success)
 	if err != nil {
-		return nil, mapPaymentError(orderID, err)
+		return nil, mapPaymentError(ctx, orderID, err)
 	}
 	if outcome.expired {
-		return nil, mapPaymentError(orderID, orders.ErrExpired)
+		return nil, mapPaymentError(ctx, orderID, orders.ErrExpired)
 	}
 
-	logPaymentResult(orderID, outcome.paymentID, success)
+	logPaymentResult(ctx, orderID, outcome.paymentID, success)
 	return &checkout.PayOutput{
 		OrderID:      orderID,
 		PaymentID:    outcome.paymentID,
@@ -39,10 +39,16 @@ func (s *Service) Pay(ctx context.Context, userID *int, orderID int, guestPaymen
 	}, nil
 }
 
-func logPaymentResult(orderID int, paymentID int, success bool) {
+func logPaymentResult(ctx context.Context, orderID int, paymentID int, success bool) {
 	if success {
-		logger.Info("Mock-оплата успешно завершена: orderID=%d paymentID=%d", orderID, paymentID)
+		slog.InfoContext(ctx, "Mock-оплата успешно проведена",
+			slog.Int("order_id", orderID),
+			slog.Int("payment_id", paymentID),
+		)
 		return
 	}
-	logger.Warn("Mock-оплата отклонена: orderID=%d paymentID=%d", orderID, paymentID)
+	slog.WarnContext(ctx, "Mock-оплата отклонена",
+		slog.Int("order_id", orderID),
+		slog.Int("payment_id", paymentID),
+	)
 }

@@ -2,10 +2,11 @@ package httpx
 
 import (
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func WriteJSON(w http.ResponseWriter, status int, data any) error {
@@ -13,7 +14,7 @@ func WriteJSON(w http.ResponseWriter, status int, data any) error {
 
 	resp, err := json.Marshal(data)
 	if err != nil {
-		logger.Error("Ошибка при формировании JSON: %v", err)
+		slog.Error("Ошибка при формировании JSON", slog.Any("error", err))
 		internalErr := apierror.ErrInternal
 		w.WriteHeader(internalErr.Status)
 		resp, _ = json.Marshal(internalErr)
@@ -22,8 +23,7 @@ func WriteJSON(w http.ResponseWriter, status int, data any) error {
 	}
 
 	if _, err := w.Write(resp); err != nil {
-		logger.Error("Ошибка при отправке ответа: %v", err)
-		return err
+		return fmt.Errorf("write JSON response: %w", err)
 	}
 
 	return nil

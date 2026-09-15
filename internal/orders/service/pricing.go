@@ -5,7 +5,6 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/bonus"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 type orderPricing struct {
@@ -39,7 +38,6 @@ func (s *Service) bonusSpent(ctx context.Context, userID *int, requested int, to
 	requested = min(requested, bonus.MaxSpend(total))
 	balance, err := s.bonus.GetBalance(ctx, *userID)
 	if err != nil {
-		logger.Error("Ошибка получения баланса бонусов userID=%d: %v", *userID, err)
 		return 0, err
 	}
 	return min(requested, balance), nil

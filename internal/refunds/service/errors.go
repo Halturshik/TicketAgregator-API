@@ -1,11 +1,11 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/refunds"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,6 +20,10 @@ var (
 )
 
 func mapError(err error) error {
+	return mapErrorContext(context.Background(), err)
+}
+
+func mapErrorContext(_ context.Context, err error) error {
 	switch {
 	case errors.Is(err, refunds.ErrNotFound), errors.Is(err, refunds.ErrTicketsMismatch):
 		return apierror.ErrNotFound
@@ -32,14 +36,12 @@ func mapError(err error) error {
 	case errors.Is(err, refunds.ErrIdempotencyConflict):
 		return errIdempotencyConflict
 	case errors.Is(err, refunds.ErrSupplierMismatch), status.Code(err) == codes.NotFound:
-		return errSupplierResponse
+		return apierror.Wrap(err, errSupplierResponse)
 	case errors.Is(err, refunds.ErrInvalidFinancialState):
-		logger.Error("Некорректное финансовое состояние возврата: %v", err)
-		return apierror.ErrInternal
+		return apierror.Wrap(err, apierror.ErrInternal)
 	case status.Code(err) == codes.Unavailable || status.Code(err) == codes.DeadlineExceeded:
-		return errSupplierUnavailable
+		return apierror.Wrap(err, errSupplierUnavailable)
 	default:
-		logger.Error("Ошибка возврата: %v", err)
 		return err
 	}
 }

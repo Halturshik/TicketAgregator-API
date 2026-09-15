@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/validator"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) Logout(ctx context.Context, refreshToken string) error {
@@ -41,6 +41,6 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err := s.refreshStore.RemoveFromUserSet(ctx, int64(userIDFromJWT), hash); err != nil {
 	}
 
-	logger.Info("Пользователь успешно разлогинен: userID %d", userIDFromJWT)
+	slog.InfoContext(ctx, "Пользователь успешно вышел из системы", slog.Int("user_id", userIDFromJWT))
 	return nil
 }

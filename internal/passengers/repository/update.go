@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/passengers"
@@ -25,5 +26,8 @@ func (r *Repository) Update(
 	if err == sql.ErrNoRows {
 		return nil, passengers.ErrNotFound
 	}
-	return item, err
+	if err != nil {
+		return nil, fmt.Errorf("update passenger: %w", err)
+	}
+	return item, nil
 }

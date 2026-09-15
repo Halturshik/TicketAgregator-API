@@ -5,6 +5,7 @@ import (
 	"time"
 
 	supplierv1 "github.com/Halturshik/TicketAgregator-API/internal/gen/supplier/v1"
+	platformlogger "github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier/grpcmapping"
 	"google.golang.org/grpc"
@@ -20,7 +21,11 @@ type Client struct {
 var _ supplier.Gateway = (*Client)(nil)
 
 func Dial(address string) (*Client, *grpc.ClientConn, error) {
-	connection, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connection, err := grpc.NewClient(
+		address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(platformlogger.UnaryClientInterceptor()),
+	)
 	if err != nil {
 		return nil, nil, err
 	}

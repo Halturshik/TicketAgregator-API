@@ -3,9 +3,9 @@ package grpcserver
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	supplierv1 "github.com/Halturshik/TicketAgregator-API/internal/gen/supplier/v1"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier/grpcmapping"
 	"google.golang.org/grpc/codes"
@@ -24,7 +24,7 @@ func New(service supplier.Service) *Server {
 func (s *Server) SearchOffers(ctx context.Context, request *supplierv1.SearchOffersRequest) (*supplierv1.SearchOffersResponse, error) {
 	items, err := s.service.SearchOffers(ctx, grpcmapping.SearchRequestFromProto(request))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return &supplierv1.SearchOffersResponse{Items: grpcmapping.TripOptionsToProto(items)}, nil
 }
@@ -32,7 +32,7 @@ func (s *Server) SearchOffers(ctx context.Context, request *supplierv1.SearchOff
 func (s *Server) QuoteRefund(ctx context.Context, request *supplierv1.QuoteRefundRequest) (*supplierv1.QuoteRefundResponse, error) {
 	quote, err := s.service.QuoteRefund(ctx, grpcmapping.RefundRequestFromProto(request))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return grpcmapping.RefundQuoteToProto(quote), nil
 }
@@ -40,12 +40,12 @@ func (s *Server) QuoteRefund(ctx context.Context, request *supplierv1.QuoteRefun
 func (s *Server) ExecuteRefund(ctx context.Context, request *supplierv1.ExecuteRefundRequest) (*supplierv1.ExecuteRefundResponse, error) {
 	result, err := s.service.ExecuteRefund(ctx, grpcmapping.ExecuteRefundRequestFromProto(request))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return grpcmapping.ExecuteRefundResultToProto(result), nil
 }
 
-func grpcError(err error) error {
+func grpcError(ctx context.Context, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return status.Error(codes.Canceled, err.Error())
@@ -62,7 +62,7 @@ func grpcError(err error) error {
 	case errors.Is(err, supplier.ErrTicketAlreadyRefunded):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
-		logger.Error("Внутренняя ошибка gRPC-сервера поставщиков: %v", err)
+		slog.ErrorContext(ctx, "Внутренняя ошибка gRPC-сервера поставщиков", slog.Any("error", err))
 		return status.Error(codes.Internal, "supplier internal error")
 	}
 }

@@ -3,10 +3,10 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/config"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/pressly/goose"
 )
 
@@ -36,7 +36,7 @@ func ConnectDB(cfg *config.Config) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	logger.Info("Миграции API успешно применены")
+	slog.Info("Миграции API успешно применены")
 	return db, nil
 }
 
@@ -49,7 +49,7 @@ func ConnectSupplierDB(cfg *config.SupplierConfig) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	logger.Info("Миграции симулятора поставщиков успешно применены")
+	slog.Info("Миграции симулятора поставщиков успешно применены")
 	return db, nil
 }
 
@@ -66,7 +66,7 @@ func openDB(host, port, user, password, name string) (*sql.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("не удалось соединиться с БД: %w", err)
 	}
-	logger.Info("Соединение с PostgreSQL установлено")
+	slog.Info("Соединение с PostgreSQL установлено")
 	return db, nil
 }
 

@@ -10,11 +10,19 @@ import (
 )
 
 func (j *JWTService) GenerateAccessToken(userID int, version int) (string, error) {
-	return j.generateToken(userID, version, TypeAccess, AccessTokenTTL)
+	token, err := j.generateToken(userID, version, TypeAccess, AccessTokenTTL)
+	if err != nil {
+		return "", fmt.Errorf("generate access token: %w", err)
+	}
+	return token, nil
 }
 
 func (j *JWTService) GenerateRefreshToken(userID int, version int) (string, error) {
-	return j.generateToken(userID, version, TypeRefresh, RefreshTokenTTL)
+	token, err := j.generateToken(userID, version, TypeRefresh, RefreshTokenTTL)
+	if err != nil {
+		return "", fmt.Errorf("generate refresh token: %w", err)
+	}
+	return token, nil
 }
 
 func (j *JWTService) generateToken(userID int, version int, tokenType string, ttl time.Duration) (string, error) {

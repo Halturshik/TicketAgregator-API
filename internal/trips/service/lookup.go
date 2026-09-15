@@ -8,7 +8,6 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	ordernumber "github.com/Halturshik/TicketAgregator-API/internal/orders/number"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 	"github.com/Halturshik/TicketAgregator-API/internal/trips"
 )
@@ -46,7 +45,6 @@ func (s *Service) Lookup(ctx context.Context, input trips.LookupInput) (*trips.L
 		return nil, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка публичного поиска рейса: %v", err)
 		return nil, err
 	}
 	result.Trips = items

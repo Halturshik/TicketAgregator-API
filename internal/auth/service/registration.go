@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
@@ -10,7 +11,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/validator"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
+	platformlogger "github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) StartRegistration(ctx context.Context, in auth.RegisterInput) error {
@@ -52,17 +53,17 @@ func (s *Service) StartRegistration(ctx context.Context, in auth.RegisterInput) 
 
 	exists, err := s.store.IsEmailExists(ctx, in.Email)
 	if err != nil {
-		logger.Error("Ошибка при проверке существования email %s: %v", in.Email, err)
 		return err
 	}
 	if exists {
-		logger.Warn("Попытка регистрации на уже существующий email: %s", in.Email)
+		slog.WarnContext(ctx, "Попытка регистрации на существующий email",
+			slog.String("email", platformlogger.MaskEmail(in.Email)),
+		)
 		return apierror.ErrEmailIsUsed
 	}
 
 	passwordHash, err := password.HashPassword(in.Password)
 	if err != nil {
-		logger.Error("Ошибка при хэшировании пароля для %s: %v", in.Email, err)
 		return err
 	}
 
@@ -82,7 +83,6 @@ func (s *Service) StartRegistration(ctx context.Context, in auth.RegisterInput) 
 
 	code, err := s.codeGenerator.GenerateVerificationCode()
 	if err != nil {
-		logger.Warn("Ошибка при генерации кода для %s: %v", in.Email, err)
 		return err
 	}
 
@@ -109,7 +109,6 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		return nil, err
 	}
 	if stored.PasswordHash == "" {
-		logger.Error("Временные данные регистрации для %s не содержат хэш пароля", in.Email)
 		return nil, auth.ErrInvalidRegistrationData
 	}
 
@@ -130,19 +129,16 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		if errors.Is(err, auth.ErrDuplicateEmail) {
 			return nil, apierror.ErrEmailIsUsed
 		}
-		logger.Error("Ошибка при создании пользователя %s: %v", in.Email, err)
 		return nil, err
 	}
 
 	accessToken, err := s.jwt.GenerateAccessToken(int(userID), 1)
 	if err != nil {
-		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
 
 	refreshToken, err := s.jwt.GenerateRefreshToken(int(userID), 1)
 	if err != nil {
-		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
 
@@ -160,7 +156,10 @@ func (s *Service) ConfirmRegistration(ctx context.Context, in auth.ConfirmRegist
 		return nil, err
 	}
 
-	logger.Info("Успешная регистрация нового пользователя: userID/email: %v/%s", userID, in.Email)
+	slog.InfoContext(ctx, "Пользователь успешно зарегистрирован",
+		slog.Int64("user_id", userID),
+		slog.String("email", platformlogger.MaskEmail(in.Email)),
+	)
 
 	return &auth.LoginOutput{
 		AccessToken:  accessToken,

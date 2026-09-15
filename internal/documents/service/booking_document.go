@@ -6,7 +6,6 @@ import (
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func validateDocumentExpiration(expiresAt string, departure time.Time) error {
@@ -31,7 +30,6 @@ func (s *Service) verifyBookingDocument(
 	status, fingerprint := verifyDocument(s.verificationSecret, document.Type, document.Number, checkedAt)
 	if document.SavedDocumentID != nil {
 		if err := s.repo.UpdateVerification(ctx, *document.SavedDocumentID, status, checkedAt); err != nil {
-			logger.Error("Ошибка сохранения результата повторной проверки documentID=%d: %v", *document.SavedDocumentID, err)
 			return nil, err
 		}
 	}

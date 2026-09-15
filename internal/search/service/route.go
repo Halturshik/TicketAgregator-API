@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 	transportpkg "github.com/Halturshik/TicketAgregator-API/internal/transport"
 )
@@ -22,7 +21,6 @@ func (s *Service) loadRoute(ctx context.Context, in search.SearchInput) (searchR
 		return searchRoute{}, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка получения города отправления: %v", err)
 		return searchRoute{}, err
 	}
 	to, err := s.repo.GetCity(ctx, in.ToCityID)
@@ -30,7 +28,6 @@ func (s *Service) loadRoute(ctx context.Context, in search.SearchInput) (searchR
 		return searchRoute{}, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка получения города прибытия: %v", err)
 		return searchRoute{}, err
 	}
 	if from.ID == to.ID {
@@ -38,7 +35,6 @@ func (s *Service) loadRoute(ctx context.Context, in search.SearchInput) (searchR
 	}
 	cities, err := s.repo.ListCities(ctx)
 	if err != nil {
-		logger.Error("Ошибка получения списка городов для генерации поиска: %v", err)
 		return searchRoute{}, err
 	}
 	return searchRoute{from: *from, to: *to, cities: cities}, nil

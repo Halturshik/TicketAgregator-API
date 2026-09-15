@@ -17,19 +17,19 @@ func (s *Service) Refund(ctx context.Context, userID *int, orderID int, input re
 		return s.resume(ctx, existing, userID, input.GuestPaymentToken, requestHash)
 	}
 	if !errors.Is(err, refunds.ErrNotFound) {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 
 	prepared, err := s.prepare(ctx, userID, orderID, input)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	if !prepared.quote.Refundable {
-		return nil, mapError(refunds.ErrNotAllowed)
+		return nil, mapErrorContext(ctx, refunds.ErrNotAllowed)
 	}
 	supplierCode, err := quoteSupplier(prepared.quote)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	reconciliationStartedAt := s.now().UTC()
 	created, err := s.createOperation(
@@ -37,12 +37,12 @@ func (s *Service) Refund(ctx context.Context, userID *int, orderID int, input re
 		supplierCode, reconciliationStartedAt, prepared,
 	)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 
 	operation, err := s.repo.GetByKey(ctx, input.IdempotencyKey)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	if !created {
 		return s.resume(ctx, operation, userID, input.GuestPaymentToken, requestHash)
@@ -58,10 +58,10 @@ func (s *Service) resume(
 	requestHash string,
 ) (*refunds.Result, error) {
 	if err := authorize(&operation.Order, userID, guestToken); err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	if operation.RequestHash != requestHash {
-		return nil, mapError(refunds.ErrIdempotencyConflict)
+		return nil, mapErrorContext(ctx, refunds.ErrIdempotencyConflict)
 	}
 	if operation.Status != refunds.StatusProcessing {
 		return operationResult(operation), nil

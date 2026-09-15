@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/refunds"
 )
 
@@ -26,7 +26,7 @@ func runRefundReconciliation(ctx context.Context, service refunds.Service) {
 			err := service.Reconcile(reconcileCtx, refundReconciliationBatch)
 			cancel()
 			if err != nil && ctx.Err() == nil {
-				logger.Error("Ошибка фоновой сверки возвратов: %v", err)
+				slog.ErrorContext(ctx, "Ошибка фоновой сверки возвратов", slog.Any("error", err))
 			}
 		}
 	}

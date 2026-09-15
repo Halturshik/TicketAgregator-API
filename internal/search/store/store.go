@@ -28,7 +28,10 @@ func (s *Store) Save(ctx context.Context, result *search.CachedResult) error {
 	if err != nil {
 		return fmt.Errorf("marshal search result: %w", err)
 	}
-	return s.redis.Set(ctx, key(result.SearchID), data, SearchTTL).Err()
+	if err := s.redis.Set(ctx, key(result.SearchID), data, SearchTTL).Err(); err != nil {
+		return fmt.Errorf("save search result: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) Get(ctx context.Context, id string) (*search.CachedResult, error) {
@@ -37,7 +40,7 @@ func (s *Store) Get(ctx context.Context, id string) (*search.CachedResult, error
 		return nil, search.ErrCachedResultNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get search result: %w", err)
 	}
 	var result search.CachedResult
 	if err := json.Unmarshal(data, &result); err != nil {

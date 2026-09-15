@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) CleanupExpired(ctx context.Context, limit int) (int, error) {
@@ -12,20 +13,18 @@ func (s *Service) CleanupExpired(ctx context.Context, limit int) (int, error) {
 	before := s.now().UTC().Add(-orders.ExpiredOrderRetention)
 	deletedOrders, err := s.repo.DeleteExpiredOrders(ctx, before, limit)
 	if err != nil {
-		logger.Error("Ошибка удаления просроченных неоплаченных заказов: %v", err)
-		return 0, err
+		return 0, fmt.Errorf("cleanup expired unpaid orders: %w", err)
 	}
 	if deletedOrders > 0 {
-		logger.Info("Удалены просроченные неоплаченные заказы: count=%d", deletedOrders)
+		slog.InfoContext(ctx, "Удалены просроченные неоплаченные заказы", slog.Int("count", deletedOrders))
 	}
 
 	deletedTrips, err := s.repo.DeleteOrphanTrips(ctx, before, limit)
 	if err != nil {
-		logger.Error("Ошибка удаления неиспользуемых рейсов: %v", err)
-		return deletedOrders, err
+		return deletedOrders, fmt.Errorf("cleanup orphan scheduled trips: %w", err)
 	}
 	if deletedTrips > 0 {
-		logger.Info("Удалены неиспользуемые рейсы: count=%d", deletedTrips)
+		slog.InfoContext(ctx, "Удалены неиспользуемые рейсы", slog.Int("count", deletedTrips))
 	}
 	return deletedOrders, nil
 }

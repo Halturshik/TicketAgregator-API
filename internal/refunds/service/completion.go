@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/orders"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/refunds"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 )
@@ -96,14 +96,18 @@ func (s *Service) finalizeSuccess(
 		return tx.MarkSuccess(ctx, success)
 	})
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	completed, err := s.repo.GetByKey(ctx, operation.IdempotencyKey)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
-	logger.Info("Возврат завершён: refundID=%d orderID=%d tickets=%d cash=%d",
-		completed.ID, completed.Order.ID, len(completed.Items), completed.CashAmount)
+	slog.InfoContext(ctx, "Возврат завершён",
+		slog.Int("refund_id", completed.ID),
+		slog.Int("order_id", completed.Order.ID),
+		slog.Int("tickets", len(completed.Items)),
+		slog.Int("cash_amount", completed.CashAmount),
+	)
 	return operationResult(completed), nil
 }
 
@@ -151,13 +155,16 @@ func (s *Service) finalizeFailure(
 		return tx.MarkFailed(ctx, failure)
 	})
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	failed, err := s.repo.GetByKey(ctx, operation.IdempotencyKey)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
-	logger.Warn("Поставщик отклонил возврат: refundID=%d code=%s", failed.ID, failed.FailureCode)
+	slog.WarnContext(ctx, "Поставщик сообщил об отказе в возврате",
+		slog.Int("refund_id", failed.ID),
+		slog.String("failure_code", failed.FailureCode),
+	)
 	return operationResult(failed), nil
 }
 

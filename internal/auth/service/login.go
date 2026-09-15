@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/password"
@@ -10,7 +11,7 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/cleaning"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/validator"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
+	platformlogger "github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) LoginStart(ctx context.Context, in auth.LoginStartInput) error {
@@ -36,7 +37,6 @@ func (s *Service) LoginStart(ctx context.Context, in auth.LoginStartInput) error
 		if errors.Is(err, auth.ErrUserNotFound) {
 			return apierror.ErrInvalidCredentials
 		}
-		logger.Error("Ошибка при получении пользователя по email %s: %v", in.Email, err)
 		return err
 	}
 
@@ -50,7 +50,6 @@ func (s *Service) LoginStart(ctx context.Context, in auth.LoginStartInput) error
 
 	code, err := s.codeGenerator.GenerateVerificationCode()
 	if err != nil {
-		logger.Warn("Ошибка при генерации кода для %s: %v", in.Email, err)
 		return err
 	}
 
@@ -84,13 +83,11 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 
 	accessToken, err := s.jwt.GenerateAccessToken(int(userID), user.TokenVersion)
 	if err != nil {
-		logger.Error("Ошибка при генерации access-токен для userID %v: %v", userID, err)
 		return nil, err
 	}
 
 	refreshToken, err := s.jwt.GenerateRefreshToken(int(userID), user.TokenVersion)
 	if err != nil {
-		logger.Error("Ошибка при генерации refresh-токена для userID %v: %v", userID, err)
 		return nil, err
 	}
 
@@ -108,7 +105,10 @@ func (s *Service) LoginConfirm(ctx context.Context, in auth.LoginConfirmInput) (
 		return nil, err
 	}
 
-	logger.Info("Успешная авторизация для userID/email: %v/%s", userID, in.Email)
+	slog.InfoContext(ctx, "Пользователь успешно авторизован",
+		slog.Int64("user_id", userID),
+		slog.String("email", platformlogger.MaskEmail(in.Email)),
+	)
 
 	return &auth.LoginOutput{
 		AccessToken:  accessToken,

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -9,7 +10,6 @@ import (
 	"github.com/Halturshik/TicketAgregator-API/internal/auth"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/httpx"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/platform/ratelimit"
 )
 
@@ -54,7 +54,10 @@ func (m *RateLimitMiddleware) handle(
 ) {
 	decision, err := m.limiter.Allow(r.Context(), policy, identity)
 	if err != nil {
-		logger.Error("Ошибка проверки ограничения запросов policy=%s: %v", policy.Name, err)
+		slog.ErrorContext(r.Context(), "Ошибка проверки лимита отправляемых запросов для клиента",
+			slog.String("policy", policy.Name),
+			slog.Any("error", err),
+		)
 		_ = httpx.WriteJSON(w, apierror.ErrInternal.Status, apierror.ErrInternal)
 		return
 	}
@@ -64,7 +67,10 @@ func (m *RateLimitMiddleware) handle(
 			retryAfter = 1
 		}
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-		logger.Warn("Превышено ограничение запросов policy=%s identity=%s", policy.Name, identity)
+		slog.WarnContext(r.Context(), "Превышен лимит отправляемых запросов для клиента",
+			slog.String("policy", policy.Name),
+			slog.String("identity", identity),
+		)
 		_ = httpx.WriteJSON(w, apierror.ErrRateLimited.Status, apierror.ErrRateLimited)
 		return
 	}

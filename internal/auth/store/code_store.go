@@ -2,10 +2,12 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
+	platformlogger "github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,19 +22,23 @@ func NewCodeService(redis *redis.Client) *CodeStore {
 func (c *CodeStore) RequestCode(ctx context.Context, email string, code string) error {
 	cooldownKey := CooldownKey(email)
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
-		return err
+		return fmt.Errorf("check verification cooldown: %w", err)
 	} else if cnt == 1 {
-		logger.Warn("Запрос кода с блокировкой для %s", email)
+		slog.WarnContext(ctx, "Запрос кода во время блокировки",
+			slog.String("email", platformlogger.MaskEmail(email)),
+		)
 		return apierror.ErrTooManyAttempts
 	}
 
 	rateKey := RateLimitKey(email)
 	claimed, err := c.redis.SetNX(ctx, rateKey, "1", CodeRateLimitWindow).Result()
 	if err != nil {
-		return err
+		return fmt.Errorf("claim verification rate limit: %w", err)
 	}
 	if !claimed {
-		logger.Warn("Лимит на запрос кода для %s", email)
+		slog.WarnContext(ctx, "Превышен лимит запросов кода",
+			slog.String("email", platformlogger.MaskEmail(email)),
+		)
 		return apierror.ErrCodeRateLimited
 	}
 	keepRateLimit := false
@@ -46,11 +52,11 @@ func (c *CodeStore) RequestCode(ctx context.Context, email string, code string) 
 	attemptsKey := AttemptsKey(email)
 
 	if err := c.redis.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
-		return err
+		return fmt.Errorf("clear previous verification state: %w", err)
 	}
 
 	if err := c.redis.Set(ctx, codeKey, code, VerifyCodeTTL).Err(); err != nil {
-		return err
+		return fmt.Errorf("save verification code: %w", err)
 	}
 
 	keepRateLimit = true
@@ -65,18 +71,22 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 	lockKey := "lock:verify:" + codeKey
 
 	if cnt, err := c.redis.Exists(ctx, cooldownKey).Result(); err != nil {
-		return err
+		return fmt.Errorf("check verification cooldown: %w", err)
 	} else if cnt == 1 {
-		logger.Warn("Попытка ввода кода во время активной блокировки для %s", email)
+		slog.WarnContext(ctx, "Попытка проверки кода во время блокировки",
+			slog.String("email", platformlogger.MaskEmail(email)),
+		)
 		return apierror.ErrTooManyAttempts
 	}
 
 	ok, err := c.redis.SetNX(ctx, lockKey, "1", 5*time.Second).Result()
 	if err != nil {
-		return err
+		return fmt.Errorf("acquire verification lock: %w", err)
 	}
 	if !ok {
-		logger.Warn("Попытка паралелльного ввода кода для %s", email)
+		slog.WarnContext(ctx, "Параллельная попытка проверки кода",
+			slog.String("email", platformlogger.MaskEmail(email)),
+		)
 		return apierror.ErrInvalidVerificationCode
 	}
 
@@ -85,44 +95,54 @@ func (c *CodeStore) Verify(ctx context.Context, email, code string) error {
 	storedCode, err := c.redis.Get(ctx, codeKey).Result()
 	if err != nil {
 		if err == redis.Nil {
-			logger.Warn("Попытка ввода истекшего кода для %s", email)
+			slog.WarnContext(ctx, "Попытка проверки истёкшего кода",
+				slog.String("email", platformlogger.MaskEmail(email)),
+			)
 			return apierror.ErrCodeExpired
 		}
-		return err
+		return fmt.Errorf("get verification code: %w", err)
 	}
 
 	if storedCode != code {
 		attempts, err := c.redis.Incr(ctx, attemptsKey).Result()
 		if err != nil {
-			return err
+			return fmt.Errorf("increment verification attempts: %w", err)
 		}
 
 		if attempts == 1 {
 			if err := c.redis.Expire(ctx, attemptsKey, VerifyCodeTTL).Err(); err != nil {
-				return err
+				return fmt.Errorf("set verification attempts ttl: %w", err)
 			}
 		}
 
 		if attempts >= MaxVerifyAttempts {
-			logger.Warn("Превышен лимит попыток ввода кода для %s (попыток: %d)", email, attempts)
+			slog.WarnContext(ctx, "Превышен лимит попыток проверки кода",
+				slog.String("email", platformlogger.MaskEmail(email)),
+				slog.Int64("attempts", attempts),
+			)
 			if err := c.redis.Set(ctx, cooldownKey, "1", CooldownAfterFailed).Err(); err != nil {
-				return err
+				return fmt.Errorf("set verification cooldown: %w", err)
 			}
 			c.redis.Del(ctx, codeKey, attemptsKey)
 
 			return apierror.ErrTooManyAttempts
 		}
 
-		logger.Warn("Неверный код подтверждения для %s (попытка %d/%d)", email, attempts, MaxVerifyAttempts)
+		slog.WarnContext(ctx, "Неверный код подтверждения",
+			slog.String("email", platformlogger.MaskEmail(email)),
+			slog.Int64("attempt", attempts),
+			slog.Int("max_attempts", MaxVerifyAttempts),
+		)
 		return apierror.ErrInvalidVerificationCode
 	}
 
 	if err := c.redis.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
-		logger.Warn("Ошибка при инвалидации кода для %s: %v", email, err)
-		return err
+		return fmt.Errorf("invalidate verification code: %w", err)
 	}
 
-	logger.Info("Код и попытки успешно очищены для %s", email)
+	slog.DebugContext(ctx, "Код подтверждения и счётчик попыток очищены",
+		slog.String("email", platformlogger.MaskEmail(email)),
+	)
 
 	return nil
 }

@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/bonus"
 	"github.com/Halturshik/TicketAgregator-API/internal/fare"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/Halturshik/TicketAgregator-API/internal/search"
 	"github.com/Halturshik/TicketAgregator-API/internal/supplier"
 )
@@ -57,7 +57,10 @@ func (s *Service) generateTripOptions(
 	succeeded := 0
 	for result := range results {
 		if result.err != nil {
-			logger.Warn("Поставщик %s не вернул предложения: %v", result.providerCode, result.err)
+			slog.WarnContext(ctx, "Поставщик не вернул сгенерированные предложения",
+				slog.String("supplier_code", result.providerCode),
+				slog.Any("error", result.err),
+			)
 			if firstErr == nil {
 				firstErr = result.err
 			}

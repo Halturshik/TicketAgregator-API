@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/bookingaccess"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 const accessRequestMessage = "Если email совпадает с данными заказа, код подтверждения отправлен"
@@ -46,7 +46,7 @@ func (s *Service) RequestAccess(
 		if err := s.challenges.Request(ctx, dummy, code); err != nil {
 			return nil, mapError("ограничения запроса доступа к заказу", err)
 		}
-		logger.Warn("Запрошен доступ к гостевому заказу с несовпадающими данными")
+		slog.WarnContext(ctx, "Запрошен доступ к гостевому заказу с несовпадающими данными")
 		return output, nil
 	}
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *Service) RequestAccess(
 	if err := s.mailer.SendVerificationEmail(ctx, booking.GuestEmail, code); err != nil {
 		return nil, mapError("отправки кода доступа к заказу", err)
 	}
-	logger.Info("Отправлен код доступа к гостевому заказу order_id=%d", booking.ID)
+	slog.InfoContext(ctx, "Отправлен код доступа к гостевому заказу", slog.Int("order_id", booking.ID))
 	return output, nil
 }
 
@@ -86,7 +86,7 @@ func (s *Service) ConfirmAccess(
 	if err != nil {
 		return nil, mapError("выдачи токена доступа к заказу", err)
 	}
-	logger.Info("Выдан токен доступа к гостевому заказу order_id=%d", challenge.OrderID)
+	slog.InfoContext(ctx, "Выдан токен доступа к гостевому заказу", slog.Int("order_id", challenge.OrderID))
 	return &bookingaccess.AccessOutput{
 		OrderNumber: challenge.OrderNumber,
 		ExpiresAt:   s.now().UTC().Add(bookingaccess.AccessTokenTTL),

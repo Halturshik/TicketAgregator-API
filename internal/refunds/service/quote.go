@@ -19,7 +19,7 @@ type preparedRefund struct {
 func (s *Service) Quote(ctx context.Context, userID *int, orderID int, input refunds.Input) (*refunds.QuoteOutput, error) {
 	prepared, err := s.prepare(ctx, userID, orderID, input)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, mapErrorContext(ctx, err)
 	}
 	return prepared.quote, nil
 }

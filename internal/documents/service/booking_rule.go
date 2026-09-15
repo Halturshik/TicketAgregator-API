@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/validator"
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) validateDocumentRule(
@@ -20,11 +20,14 @@ func (s *Service) validateDocumentRule(
 	age := validator.AgeOn(birthDate, in.DepartureTime)
 	rule, err := s.repo.FindRule(ctx, in.Transport, in.IsInternational, age, in.Passenger.IsRussian)
 	if errors.Is(err, documents.ErrRuleNotFound) {
-		logger.Warn("Не найдено правило документа transport=%s international=%t russian=%t", in.Transport, in.IsInternational, in.Passenger.IsRussian)
+		slog.WarnContext(ctx, "Не найдено правило документа",
+			slog.String("transport", in.Transport),
+			slog.Bool("international", in.IsInternational),
+			slog.Bool("russian_citizen", in.Passenger.IsRussian),
+		)
 		return apierror.ErrDocumentNotAllowed
 	}
 	if err != nil {
-		logger.Error("Ошибка поиска правила документа: %v", err)
 		return err
 	}
 	if !rule.Allows(documentType) {

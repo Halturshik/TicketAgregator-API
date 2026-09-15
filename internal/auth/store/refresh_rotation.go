@@ -2,11 +2,11 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/auth/token"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -41,8 +41,7 @@ func (s *RefreshStore) Rotate(ctx context.Context, userID int64, oldToken string
 		strconv.FormatInt((token.RefreshTokenTTL*2).Milliseconds(), 10),
 	).Int()
 	if err != nil {
-		logger.Error("Ошибка атомарной ротации refresh-токена для userID %d: %v", userID, err)
-		return err
+		return fmt.Errorf("rotate refresh token for user %d: %w", userID, err)
 	}
 	if rotated != 1 {
 		return apierror.ErrInvalidToken

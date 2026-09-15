@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/passengers"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) Delete(ctx context.Context, ownerUserID int, passengerID int) error {
@@ -18,9 +18,11 @@ func (s *Service) Delete(ctx context.Context, ownerUserID int, passengerID int) 
 		return apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка удаления сохраненного пассажира userID=%d passengerID=%d: %v", ownerUserID, passengerID, err)
 		return err
 	}
-	logger.Info("Сохраненный пассажир удален: userID=%d passengerID=%d", ownerUserID, passengerID)
+	slog.InfoContext(ctx, "Сохранённый пассажир удалён",
+		slog.Int("user_id", ownerUserID),
+		slog.Int("passenger_id", passengerID),
+	)
 	return nil
 }

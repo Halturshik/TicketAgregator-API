@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/passengers"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) Update(ctx context.Context, ownerUserID int, passengerID int, in passengers.SavePassengerInput) (*passengers.Passenger, error) {
@@ -22,9 +22,11 @@ func (s *Service) Update(ctx context.Context, ownerUserID int, passengerID int, 
 		return nil, apierror.ErrNotFound
 	}
 	if err != nil {
-		logger.Error("Ошибка обновления сохраненного пассажира userID=%d passengerID=%d: %v", ownerUserID, passengerID, err)
 		return nil, err
 	}
-	logger.Info("Сохраненный пассажир обновлен: userID=%d passengerID=%d", ownerUserID, passengerID)
+	slog.InfoContext(ctx, "Сохранённый пассажир обновлён",
+		slog.Int("user_id", ownerUserID),
+		slog.Int("passenger_id", passengerID),
+	)
 	return item, nil
 }

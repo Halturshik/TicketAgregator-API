@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
 )
@@ -25,5 +26,8 @@ func (r *Repository) GetOwned(ctx context.Context, ownerUserID int, documentID i
 	if err == sql.ErrNoRows {
 		return nil, documents.ErrNotFound
 	}
-	return document, err
+	if err != nil {
+		return nil, fmt.Errorf("get owned document: %w", err)
+	}
+	return document, nil
 }

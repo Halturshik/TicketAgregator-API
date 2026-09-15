@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/bookingaccess"
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -35,7 +35,9 @@ func (s *ChallengeStore) Request(ctx context.Context, challenge bookingaccess.Ch
 		return err
 	}
 	if blocked == 1 {
-		logger.Warn("Запрос доступа к заказу во время блокировки order_id=%d", challenge.OrderID)
+		slog.WarnContext(ctx, "Запрос доступа к заказу во время блокировки",
+			slog.Int("order_id", challenge.OrderID),
+		)
 		return apierror.ErrTooManyAttempts
 	}
 
@@ -44,7 +46,9 @@ func (s *ChallengeStore) Request(ctx context.Context, challenge bookingaccess.Ch
 		return err
 	}
 	if !claimed {
-		logger.Warn("Превышен лимит запроса кода доступа к заказу order_id=%d", challenge.OrderID)
+		slog.WarnContext(ctx, "Превышен лимит запросов кода доступа к заказу",
+			slog.Int("order_id", challenge.OrderID),
+		)
 		return apierror.ErrCodeRateLimited
 	}
 	keepLimit := false
@@ -142,14 +146,15 @@ func (s *ChallengeStore) recordFailedAttempt(
 		s.redis.Del(
 			ctx, challengeKey(challengeID), attemptsKey(challengeID), activeChallengeKey(payload.Identity),
 		)
-		logger.Warn("Превышен лимит проверки доступа к заказу order_id=%d", payload.Challenge.OrderID)
+		slog.WarnContext(ctx, "Превышен лимит проверок доступа к заказу",
+			slog.Int("order_id", payload.Challenge.OrderID),
+		)
 		return apierror.ErrTooManyAttempts
 	}
-	logger.Warn(
-		"Неверный код доступа к заказу order_id=%d попытка=%d/%d",
-		payload.Challenge.OrderID,
-		attempts,
-		bookingaccess.MaxVerificationAttempts,
+	slog.WarnContext(ctx, "Неверный код доступа к заказу",
+		slog.Int("order_id", payload.Challenge.OrderID),
+		slog.Int64("attempt", attempts),
+		slog.Int("max_attempts", bookingaccess.MaxVerificationAttempts),
 	)
 	return apierror.ErrInvalidVerificationCode
 }

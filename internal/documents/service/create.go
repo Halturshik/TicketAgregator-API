@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Halturshik/TicketAgregator-API/internal/common/apierror"
 	"github.com/Halturshik/TicketAgregator-API/internal/documents"
-	"github.com/Halturshik/TicketAgregator-API/internal/platform/logger"
 )
 
 func (s *Service) Create(ctx context.Context, ownerUserID int, in documents.SaveDocumentInput) (*documents.Document, error) {
@@ -34,9 +34,12 @@ func (s *Service) Create(ctx context.Context, ownerUserID int, in documents.Save
 		return nil, apierror.ErrDocumentAlreadyExists
 	}
 	if err != nil {
-		logger.Error("Ошибка сохранения документа userID=%d type=%s: %v", ownerUserID, in.Type, err)
 		return nil, err
 	}
-	logger.Info("Документ сохранен: userID=%d documentID=%d status=%s", ownerUserID, document.ID, document.VerificationStatus)
+	slog.InfoContext(ctx, "Документ сохранён",
+		slog.Int("user_id", ownerUserID),
+		slog.Int("document_id", document.ID),
+		slog.String("verification_status", document.VerificationStatus),
+	)
 	return document, nil
 }

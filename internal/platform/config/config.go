@@ -22,6 +22,8 @@ type Config struct {
 	JWTSecret                  string
 	DocumentVerificationSecret string
 	SupplierGRPCAddress        string
+	LogFormat                  string
+	LogLevel                   string
 }
 
 type SupplierConfig struct {
@@ -31,6 +33,8 @@ type SupplierConfig struct {
 	DBPassword string
 	DBName     string
 	GRPCPort   string
+	LogFormat  string
+	LogLevel   string
 }
 
 func LoadConfig() (*Config, error) {
@@ -48,6 +52,8 @@ func LoadConfig() (*Config, error) {
 		JWTSecret:                  os.Getenv("JWT_SECRET"),
 		DocumentVerificationSecret: os.Getenv("DOCUMENT_VERIFICATION_SECRET"),
 		SupplierGRPCAddress:        os.Getenv("SUPPLIER_GRPC_ADDRESS"),
+		LogFormat:                  os.Getenv("LOG_FORMAT"),
+		LogLevel:                   os.Getenv("LOG_LEVEL"),
 	}
 
 	if cfg.DBHost == "" {
@@ -106,6 +112,7 @@ func LoadSupplierConfig() (*SupplierConfig, error) {
 		DBHost: os.Getenv("DB_HOST"), DBPort: os.Getenv("DB_PORT"),
 		DBUser: os.Getenv("DB_USER"), DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName: os.Getenv("DB_NAME"), GRPCPort: os.Getenv("SUPPLIER_GRPC_PORT"),
+		LogFormat: os.Getenv("LOG_FORMAT"), LogLevel: os.Getenv("LOG_LEVEL"),
 	}
 	if cfg.DBHost == "" {
 		return nil, fmt.Errorf("DB_HOST не указан")
