@@ -13,6 +13,7 @@ require (
 	github.com/lib/pq v1.11.1
 	github.com/pressly/goose v2.7.0+incompatible
 	github.com/redis/go-redis/v9 v9.17.3
+	github.com/swaggo/files/v2 v2.0.0
 	golang.org/x/crypto v0.47.0
 	google.golang.org/grpc v1.72.3
 	google.golang.org/protobuf v1.36.6

@@ -16,7 +16,41 @@ import (
 	orderrepo "github.com/Halturshik/TicketAgregator-API/internal/orders/repository"
 	"github.com/Halturshik/TicketAgregator-API/internal/passengers"
 	triprepo "github.com/Halturshik/TicketAgregator-API/internal/trips/repository"
+	"github.com/lib/pq"
 )
+
+func TestRegisteredOrderRestrictsUserDeletion(t *testing.T) {
+	db := openIntegrationDB(t)
+	ctx := context.Background()
+	userID := insertUser(t, db, "order-owner@example.com", 0)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO orders
+			(order_number, user_id, total_price, current_total_price,
+			 bonus_spent, bonus_earned, payable_amount, expires_at)
+		VALUES ('OWN-00001', $1, 1000, 1000, 0, 20, 1000, NOW() + INTERVAL '15 minutes')
+	`, userID)
+	if err != nil {
+		t.Fatalf("create registered order: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
+	var postgresError *pq.Error
+	if !errors.As(err, &postgresError) || postgresError.Code != "23503" {
+		t.Fatalf("delete user error = %v, want foreign key violation", err)
+	}
+
+	var usersCount, ordersCount int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE id = $1", userID).Scan(&usersCount); err != nil {
+		t.Fatalf("count retained user: %v", err)
+	}
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM orders WHERE user_id = $1", userID).Scan(&ordersCount); err != nil {
+		t.Fatalf("count retained order: %v", err)
+	}
+	if usersCount != 1 || ordersCount != 1 {
+		t.Fatalf("unexpected retained rows: users=%d orders=%d", usersCount, ordersCount)
+	}
+}
 
 func TestPostgresBookingTripLifecycle(t *testing.T) {
 	db := openIntegrationDB(t)

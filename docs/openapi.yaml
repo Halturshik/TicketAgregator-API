@@ -1,0 +1,2444 @@
+openapi: 3.0.3
+info:
+  title: Ticket Aggregator API
+  version: 1.0.0
+  description: |
+    HTTP API учебного агрегатора авиа-, железнодорожных и автобусных билетов.
+    Поиск, email, проверка документов и оплата имитируются; подтверждённые
+    заказы, билеты, платежи и возвраты сохраняются в PostgreSQL.
+
+    API принимает необязательный `X-Request-ID`. Если заголовок отсутствует
+    или не является UUID, сервер создаёт новый и возвращает его в ответе.
+servers:
+  - url: http://localhost:8080
+    description: Локальный запуск
+
+security: []
+
+tags:
+  - name: Health
+    description: Liveness и readiness приложения.
+  - name: Auth
+    description: Регистрация, вход, токены и восстановление пароля.
+  - name: Profile
+    description: Профиль владельца аккаунта.
+  - name: Passengers
+    description: Сохранённые пассажиры пользователя.
+  - name: Documents
+    description: Документы пользователя и сохранённых пассажиров.
+  - name: Search
+    description: Поиск и постраничное чтение предложений.
+  - name: Orders
+    description: Создание заказа и история покупок.
+  - name: Checkout
+    description: Mock-оплата созданного заказа.
+  - name: Refunds
+    description: Расчёт и выполнение частичного или полного возврата.
+  - name: Booking access
+    description: Публичное резюме и подтверждённый доступ к бронированию.
+  - name: Trips
+    description: Публичный поиск рейсов без персональных данных.
+  - name: Bonus
+    description: История бонусных операций пользователя.
+
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: live
+      summary: Проверить работу HTTP-процесса
+      responses:
+        "200":
+          description: Процесс работает
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Liveness"
+
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: ready
+      summary: Проверить готовность зависимостей
+      responses:
+        "200":
+          description: PostgreSQL, Redis и supplier доступны
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: Хотя бы одна обязательная зависимость недоступна
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      operationId: startRegistration
+      summary: Начать регистрацию
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/register/confirm:
+    post:
+      tags: [Auth]
+      operationId: confirmRegistration
+      summary: Подтвердить регистрацию
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmCodeInput"
+      responses:
+        "201":
+          description: Пользователь зарегистрирован
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/RefreshCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      operationId: startLogin
+      summary: Проверить пароль и отправить код входа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/login/confirm:
+    post:
+      tags: [Auth]
+      operationId: confirmLogin
+      summary: Подтвердить вход
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmCodeInput"
+      responses:
+        "200":
+          description: Вход подтверждён
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/RefreshCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessToken"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshTokens
+      summary: Обновить пару токенов
+      security:
+        - refreshCookie: []
+      responses:
+        "200":
+          description: Токены обновлены, старый refresh token инвалидирован
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/RefreshCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessToken"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Завершить refresh-сессию
+      security:
+        - refreshCookie: []
+        - {}
+      responses:
+        "200":
+          description: Cookie очищен; тело ответа — JSON `null`
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/RefreshCookie"
+
+  /api/auth/password/forgot:
+    post:
+      tags: [Auth]
+      operationId: forgotPassword
+      summary: Запросить код восстановления пароля
+      description: Ответ не раскрывает, зарегистрирован ли указанный email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/password/verify-code:
+    post:
+      tags: [Auth]
+      operationId: verifyPasswordResetCode
+      summary: Подтвердить код восстановления
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmCodeInput"
+      responses:
+        "200":
+          description: Код подтверждён; тело ответа — JSON `null`
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/password/reset:
+    post:
+      tags: [Auth]
+      operationId: resetPassword
+      summary: Установить новый пароль
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Пароль изменён, выдана новая пара токенов
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/RefreshCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/profile/:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      summary: Получить профиль
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [Profile]
+      operationId: updateProfile
+      summary: Изменить профиль
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileInput"
+      responses:
+        "200":
+          description: Обновлённый профиль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/passengers/:
+    get:
+      tags: [Passengers]
+      operationId: listPassengers
+      summary: Получить сохранённых пассажиров
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Список пассажиров
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PassengerList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/passengers/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    put:
+      tags: [Passengers]
+      operationId: updatePassenger
+      summary: Изменить сохранённого пассажира
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavePassengerInput"
+      responses:
+        "200":
+          description: Обновлённый пассажир
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Passenger"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [Passengers]
+      operationId: deletePassenger
+      summary: Скрыть сохранённого пассажира
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Пассажир удалён из доступного списка
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/documents/:
+    get:
+      tags: [Documents]
+      operationId: listDocuments
+      summary: Получить документы пользователя или пассажира
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: passenger_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Если не указан, возвращаются документы владельца аккаунта.
+      responses:
+        "200":
+          description: Список документов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Documents]
+      operationId: createDocument
+      summary: Сохранить документ
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveDocumentInput"
+      responses:
+        "201":
+          description: Документ сохранён и проверен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/documents/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceID"
+    put:
+      tags: [Documents]
+      operationId: updateDocument
+      summary: Изменить и повторно проверить документ
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveDocumentInput"
+      responses:
+        "200":
+          description: Обновлённый документ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [Documents]
+      operationId: deleteDocument
+      summary: Удалить документ
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Документ удалён
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/search/cities:
+    get:
+      tags: [Search]
+      operationId: listCities
+      summary: Получить доступные города
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Справочник городов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CityList"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/search/air:
+    post:
+      tags: [Search]
+      operationId: searchAir
+      summary: Найти авиабилеты
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/SearchInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/SearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/search/railway:
+    post:
+      tags: [Search]
+      operationId: searchRailway
+      summary: Найти железнодорожные билеты
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/SearchInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/SearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/search/bus:
+    post:
+      tags: [Search]
+      operationId: searchBus
+      summary: Найти автобусные билеты
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/SearchInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/SearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/search/{id}:
+    get:
+      tags: [Search]
+      operationId: getSearchPage
+      summary: Получить страницу сохранённого поиска
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/SearchLimit"
+      responses:
+        "200":
+          $ref: "#/components/responses/SearchResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/orders/:
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      summary: Создать заказ из предложения поиска
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderInput"
+      responses:
+        "201":
+          description: Заказ создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/orders/{id}/refund-quote:
+    post:
+      tags: [Refunds]
+      operationId: quoteRefundByOrderID
+      summary: Рассчитать возврат по внутреннему ID заказа
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        $ref: "#/components/requestBodies/RefundSelection"
+      responses:
+        "200":
+          description: Расчёт возврата
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundQuote"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/orders/{id}/refunds:
+    post:
+      tags: [Refunds]
+      operationId: refundByOrderID
+      summary: Выполнить возврат по внутреннему ID заказа
+      description: Повтор с тем же ключом и тем же набором билетов возвращает существующую операцию.
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/RefundSelection"
+      responses:
+        "201":
+          $ref: "#/components/responses/RefundCompleted"
+        "202":
+          $ref: "#/components/responses/RefundAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/RefundConflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/payments/mock:
+    post:
+      tags: [Checkout]
+      operationId: mockPayment
+      summary: Провести mock-оплату
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayInput"
+      responses:
+        "200":
+          description: Mock provider обработал оплату
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayOutput"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/my/orders/:
+    get:
+      tags: [Orders]
+      operationId: listOrderHistory
+      summary: Получить историю заказов пользователя
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/HistoryLimit"
+        - name: transport
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/Transport"
+      responses:
+        "200":
+          description: Оплаченные и возвращённые заказы
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bonus/history:
+    get:
+      tags: [Bonus]
+      operationId: listBonusHistory
+      summary: Получить историю бонусных операций
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/BonusLimit"
+      responses:
+        "200":
+          description: История бонусов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonusTransactionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bookings/lookup:
+    post:
+      tags: [Booking access]
+      operationId: lookupBooking
+      summary: Получить публичное резюме билета или заказа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingLookupInput"
+      responses:
+        "200":
+          description: Резюме без чувствительных данных
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicBookingSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bookings/access/request:
+    post:
+      tags: [Booking access]
+      operationId: requestBookingAccess
+      summary: Отправить гостю код доступа к заказу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingAccessRequest"
+      responses:
+        "202":
+          description: Challenge создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingAccessChallenge"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bookings/access/confirm:
+    post:
+      tags: [Booking access]
+      operationId: confirmBookingAccess
+      summary: Подтвердить код и получить access cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingAccessConfirm"
+      responses:
+        "200":
+          description: Доступ подтверждён
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/BookingAccessCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingAccessResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bookings/{orderNumber}:
+    get:
+      tags: [Booking access]
+      operationId: getBookingDetails
+      summary: Получить защищённые детали заказа
+      security:
+        - bearerAuth: []
+        - bookingAccessCookie: []
+      parameters:
+        - $ref: "#/components/parameters/OrderNumber"
+      responses:
+        "200":
+          description: Детали с сокращёнными персональными данными
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingDetails"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bookings/{orderNumber}/refund-quote:
+    post:
+      tags: [Booking access, Refunds]
+      operationId: quoteBookingRefund
+      summary: Рассчитать возврат по публичному номеру заказа
+      security:
+        - bearerAuth: []
+        - bookingAccessCookie: []
+      parameters:
+        - $ref: "#/components/parameters/OrderNumber"
+      requestBody:
+        $ref: "#/components/requestBodies/BookingRefundSelection"
+      responses:
+        "200":
+          description: Расчёт возврата
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingRefundQuote"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/bookings/{orderNumber}/refunds:
+    post:
+      tags: [Booking access, Refunds]
+      operationId: refundBooking
+      summary: Выполнить возврат по публичному номеру заказа
+      security:
+        - bearerAuth: []
+        - bookingAccessCookie: []
+      parameters:
+        - $ref: "#/components/parameters/OrderNumber"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/BookingRefundSelection"
+      responses:
+        "201":
+          description: Возврат завершён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingRefundResult"
+        "202":
+          description: Возврат обрабатывается или требует ручной проверки
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingRefundResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Поставщик отклонил возврат или состояние заказа изменилось
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BookingRefundResult"
+                  - $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/trips/lookup:
+    post:
+      tags: [Trips]
+      operationId: lookupTrip
+      summary: Найти публичные рейсы по билету или номеру рейса
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripLookupInput"
+      responses:
+        "200":
+          description: Публичные данные рейсов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripLookupResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token из auth response.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+    bookingAccessCookie:
+      type: apiKey
+      in: cookie
+      name: booking_access_token
+
+  headers:
+    RefreshCookie:
+      description: HttpOnly refresh token cookie для `/api/auth`.
+      schema:
+        type: string
+    BookingAccessCookie:
+      description: HttpOnly cookie доступа к гостевому заказу на 15 минут.
+      schema:
+        type: string
+    RetryAfter:
+      description: Количество секунд до следующей рекомендуемой попытки.
+      schema:
+        type: integer
+        minimum: 1
+
+  parameters:
+    ResourceID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OrderNumber:
+      name: orderNumber
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/OrderNumber"
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    SearchLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+    HistoryLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+        default: 5
+    BonusLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Один UUID на одну логическую операцию возврата.
+
+  requestBodies:
+    SearchInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SearchInput"
+    RefundSelection:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RefundSelection"
+    BookingRefundSelection:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BookingRefundSelection"
+
+  responses:
+    MessageResponse:
+      description: Операция начата
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Message"
+    SearchResult:
+      description: Страница результатов поиска
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SearchResult"
+    RefundCompleted:
+      description: Возврат завершён
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RefundResult"
+    RefundAccepted:
+      description: Возврат обрабатывается или требует ручной проверки
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RefundResult"
+    RefundConflict:
+      description: Поставщик отклонил возврат или состояние заказа изменилось
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/RefundResult"
+              - $ref: "#/components/schemas/APIError"
+    BadRequest:
+      description: Некорректный запрос или JSON
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    Unauthorized:
+      description: Требуется авторизация или токен недействителен
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    Forbidden:
+      description: Недостаточно прав
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    NotFound:
+      description: Ресурс не найден либо недоступен текущему клиенту
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    Conflict:
+      description: Конфликт текущего состояния
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    ValidationError:
+      description: Бизнес-валидация не пройдена
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    TooManyRequests:
+      description: Превышен rate limit или cooldown
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    InternalError:
+      description: Внутренняя ошибка без раскрытия технических деталей
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+
+  schemas:
+    Liveness:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [alive]
+
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [up, down]
+          example:
+            postgres: up
+            redis: up
+            supplier: up
+
+    APIError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: invalid_request
+        message:
+          type: string
+          example: Некорректный запрос
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            email: Некорректный адрес электронной почты
+
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    AccessToken:
+      type: object
+      required: [access_token]
+      properties:
+        access_token:
+          type: string
+
+    AuthResult:
+      allOf:
+        - $ref: "#/components/schemas/AccessToken"
+        - $ref: "#/components/schemas/Message"
+
+    RegisterInput:
+      type: object
+      required: [first_name, last_name, birth_date, email, password, is_russian]
+      properties:
+        first_name:
+          type: string
+        middle_name:
+          type: string
+        last_name:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        is_russian:
+          type: boolean
+
+    ConfirmCodeInput:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          pattern: "^[0-9]{4}$"
+          example: "1234"
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    EmailInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    ResetPasswordInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    Profile:
+      type: object
+      required: [id, email, first_name, last_name, birth_date, is_russian, bonus_points]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        middle_name:
+          type: string
+        last_name:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        is_russian:
+          type: boolean
+        bonus_points:
+          type: integer
+          minimum: 0
+
+    UpdateProfileInput:
+      type: object
+      required: [first_name, last_name, birth_date, is_russian]
+      properties:
+        first_name:
+          type: string
+        middle_name:
+          type: string
+        last_name:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        is_russian:
+          type: boolean
+
+    Passenger:
+      allOf:
+        - $ref: "#/components/schemas/SavePassengerInput"
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+
+    SavePassengerInput:
+      type: object
+      required: [first_name, last_name, birth_date, is_russian]
+      properties:
+        first_name:
+          type: string
+        middle_name:
+          type: string
+        last_name:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        is_russian:
+          type: boolean
+
+    PassengerList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Passenger"
+
+    DocumentType:
+      type: string
+      enum: [internal_passport, international_passport, birth_certificate, foreign_passport]
+
+    SaveDocumentInput:
+      type: object
+      required: [type, number]
+      properties:
+        passenger_id:
+          type: integer
+          minimum: 1
+          description: Не указывается для документа владельца аккаунта.
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        number:
+          type: string
+        expires_at:
+          type: string
+          format: date
+
+    Document:
+      type: object
+      required: [id, type, number, verification_status]
+      properties:
+        id:
+          type: integer
+        owner_user_id:
+          type: integer
+        passenger_id:
+          type: integer
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        number:
+          type: string
+        verification_status:
+          type: string
+          enum: [verified, rejected]
+        expires_at:
+          type: string
+          format: date
+        last_checked_at:
+          type: string
+          format: date-time
+
+    DocumentList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+
+    Transport:
+      type: string
+      enum: [avia, rail, bus]
+
+    City:
+      type: object
+      required: [id, name, country, is_air_hub]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        country:
+          type: string
+        is_air_hub:
+          type: boolean
+
+    CityList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/City"
+
+    SearchInput:
+      type: object
+      required: [from_city_id, to_city_id, date, passengers]
+      properties:
+        from_city_id:
+          type: integer
+          minimum: 1
+        to_city_id:
+          type: integer
+          minimum: 1
+        date:
+          type: string
+          format: date
+          description: От текущего дня до 12 месяцев вперёд.
+        return_date:
+          type: string
+          format: date
+        passengers:
+          type: integer
+          minimum: 1
+          maximum: 12
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+
+    SearchResult:
+      type: object
+      required: [search_id, total, offset, limit, items]
+      properties:
+        search_id:
+          type: string
+          format: uuid
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripOption"
+
+    FareType:
+      type: string
+      enum: [non_refundable, standard, flexible]
+
+    RefundTier:
+      type: object
+      required: [min_hours_before_departure, refund_percent]
+      properties:
+        min_hours_before_departure:
+          type: integer
+        refund_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    RefundPolicy:
+      type: object
+      required: [code, refundable]
+      properties:
+        code:
+          $ref: "#/components/schemas/FareType"
+        refundable:
+          type: boolean
+        tiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RefundTier"
+
+    Segment:
+      type: object
+      required:
+        [order, from_city_id, to_city_id, from_city, to_city, departure_time, arrival_time, carrier_id, carrier, carrier_code, route_number]
+      properties:
+        order:
+          type: integer
+          minimum: 1
+        from_city_id:
+          type: integer
+        to_city_id:
+          type: integer
+        from_city:
+          type: string
+        to_city:
+          type: string
+        departure_time:
+          type: string
+          format: date-time
+        arrival_time:
+          type: string
+          format: date-time
+        carrier_id:
+          type: integer
+        carrier:
+          type: string
+        carrier_code:
+          type: string
+        route_number:
+          type: string
+
+    Offer:
+      type: object
+      required:
+        [id, transport, is_international, price, price_per_passenger, bonus_earn, transfer_count, duration_minutes, segments]
+      properties:
+        id:
+          type: string
+        transport:
+          $ref: "#/components/schemas/Transport"
+        is_international:
+          type: boolean
+        price:
+          type: integer
+          description: Полная цена направления для всех пассажиров, рубли.
+        price_per_passenger:
+          type: integer
+          description: Цена направления для одного пассажира, рубли.
+        bonus_earn:
+          type: integer
+        bonus_hint:
+          type: string
+        transfer_count:
+          type: integer
+        duration_minutes:
+          type: integer
+        segments:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Segment"
+
+    TripOption:
+      type: object
+      required:
+        [id, schedule_id, supplier_code, supplier_offer_id, fare_type, refund_policy, transport, price, price_per_passenger, bonus_earn, outbound]
+      properties:
+        id:
+          type: string
+          format: uuid
+        schedule_id:
+          type: string
+        supplier_code:
+          type: string
+          enum: [atlas, nexus, vertex]
+        supplier_offer_id:
+          type: string
+          format: uuid
+        fare_type:
+          $ref: "#/components/schemas/FareType"
+        refund_policy:
+          $ref: "#/components/schemas/RefundPolicy"
+        transport:
+          $ref: "#/components/schemas/Transport"
+        price:
+          type: integer
+          description: Полная цена всей поездки для всех пассажиров, рубли.
+        price_per_passenger:
+          type: integer
+        bonus_earn:
+          type: integer
+        bonus_hint:
+          type: string
+        outbound:
+          $ref: "#/components/schemas/Offer"
+        return:
+          $ref: "#/components/schemas/Offer"
+
+    PassengerSnapshot:
+      type: object
+      required: [first_name, last_name, birth_date, is_russian]
+      properties:
+        first_name:
+          type: string
+        middle_name:
+          type: string
+        last_name:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        is_russian:
+          type: boolean
+
+    DocumentBooking:
+      type: object
+      properties:
+        saved_document_id:
+          type: integer
+          minimum: 1
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        number:
+          type: string
+        expires_at:
+          type: string
+          format: date
+      description: Передаётся либо saved_document_id, либо новые данные документа.
+
+    PassengerBooking:
+      type: object
+      required: [source, passenger, document]
+      properties:
+        source:
+          type: string
+          enum: [self, saved, new]
+          description: |
+            Источник пассажирских данных. `self` доступен только авторизованному
+            пользователю и означает, что клиент объявляет пассажира владельцем
+            аккаунта. Переданные данные сохраняются как snapshot заказа и не
+            изменяют профиль; новый документ после оплаты сохраняется среди
+            документов пользователя. `saved` ссылается на сохранённого пассажира,
+            а `new` создаёт нового пассажира для этого заказа.
+        saved_passenger_id:
+          type: integer
+          minimum: 1
+        save_changes:
+          type: boolean
+          default: false
+        passenger:
+          $ref: "#/components/schemas/PassengerSnapshot"
+        document:
+          $ref: "#/components/schemas/DocumentBooking"
+
+    CreateOrderInput:
+      type: object
+      required: [search_id, trip_option_id, passengers]
+      properties:
+        search_id:
+          type: string
+          format: uuid
+        trip_option_id:
+          type: string
+          format: uuid
+        guest_email:
+          type: string
+          format: email
+          description: Обязателен для гостя и не используется для авторизованного пользователя.
+        use_bonus:
+          type: integer
+          minimum: 0
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/PassengerBooking"
+
+    DocumentSnapshot:
+      type: object
+      required: [type, number, verification_status, last_checked_at]
+      properties:
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        number:
+          type: string
+        expires_at:
+          type: string
+          format: date
+        verification_status:
+          type: string
+          enum: [verified, rejected]
+        last_checked_at:
+          type: string
+          format: date-time
+
+    OrderStatus:
+      type: string
+      enum: [created, paid, expired, partially_refunded, refunded]
+
+    TicketStatus:
+      type: string
+      enum: [booked, paid, expired, refund_pending, refunded]
+
+    Ticket:
+      type: object
+      required:
+        [id, ticket_number, supplier_code, supplier_offer_id, fare_type, refund_policy, refund_policy_version, transport, is_international, price, status, passenger, document, segments]
+      properties:
+        id:
+          type: integer
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        supplier_code:
+          type: string
+        supplier_offer_id:
+          type: string
+          format: uuid
+        fare_type:
+          $ref: "#/components/schemas/FareType"
+        refund_policy:
+          $ref: "#/components/schemas/RefundPolicy"
+        refund_policy_version:
+          type: integer
+        transport:
+          $ref: "#/components/schemas/Transport"
+        is_international:
+          type: boolean
+        price:
+          type: integer
+          description: Неизменяемая исходная цена билета, рубли.
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        passenger:
+          $ref: "#/components/schemas/PassengerSnapshot"
+        document:
+          $ref: "#/components/schemas/DocumentSnapshot"
+        segments:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Segment"
+
+    Order:
+      type: object
+      required:
+        [id, order_number, status, total_price, current_total_price, bonus_spent, bonus_earned, payable_amount, expires_at]
+      properties:
+        id:
+          type: integer
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        user_id:
+          type: integer
+        guest_email:
+          type: string
+          format: email
+        guest_payment_token:
+          type: string
+          format: uuid
+          description: Секрет гостя для оплаты по внутреннему endpoint.
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        total_price:
+          type: integer
+          description: Изначальная стоимость заказа, рубли.
+        current_total_price:
+          type: integer
+          description: Стоимость оставшихся после возвратов билетов, рубли.
+        bonus_spent:
+          type: integer
+        bonus_earned:
+          type: integer
+        payable_amount:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ticket"
+
+    PayInput:
+      type: object
+      required: [order_id]
+      properties:
+        order_id:
+          type: integer
+          minimum: 1
+        guest_payment_token:
+          type: string
+          format: uuid
+
+    PayOutput:
+      type: object
+      required: [order_id, payment_id, status, amount, bonus_spent, bonus_earned]
+      properties:
+        order_id:
+          type: integer
+        payment_id:
+          type: integer
+        status:
+          type: string
+          enum: [success, failed]
+        amount:
+          type: integer
+        bonus_spent:
+          type: integer
+        bonus_earned:
+          type: integer
+        bonus_balance:
+          type: integer
+          minimum: 0
+
+    HistoryDirection:
+      type: object
+      required: [from_city, to_city, departure_time, arrival_time]
+      properties:
+        from_city:
+          type: string
+        to_city:
+          type: string
+        departure_time:
+          type: string
+          format: date-time
+        arrival_time:
+          type: string
+          format: date-time
+
+    HistoryTicket:
+      type: object
+      required: [id, ticket_number, status, transport, passenger, document, direction]
+      properties:
+        id:
+          type: integer
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        transport:
+          $ref: "#/components/schemas/Transport"
+        passenger:
+          type: object
+          required: [first_name, last_name]
+          properties:
+            first_name:
+              type: string
+            middle_name:
+              type: string
+            last_name:
+              type: string
+        document:
+          type: object
+          required: [type, number]
+          properties:
+            type:
+              $ref: "#/components/schemas/DocumentType"
+            number:
+              type: string
+        direction:
+          $ref: "#/components/schemas/HistoryDirection"
+
+    HistoryOrder:
+      type: object
+      required: [id, order_number, status, current_total_price, bonus_spent, bonus_earned, created_at, directions, tickets]
+      properties:
+        id:
+          type: integer
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        current_total_price:
+          type: integer
+        bonus_spent:
+          type: integer
+        bonus_earned:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        directions:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryDirection"
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryTicket"
+
+    HistoryPage:
+      type: object
+      required: [total, offset, limit, items]
+      properties:
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryOrder"
+
+    RefundSelection:
+      type: object
+      properties:
+        ticket_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+        all:
+          type: boolean
+          default: false
+        guest_payment_token:
+          type: string
+          format: uuid
+      description: Передаётся ровно одно из `ticket_ids` или `all=true`.
+
+    RefundQuoteItem:
+      type: object
+      required: [ticket_id, supplier_code, refundable, refund_percent, gross_amount, gross_refund_amount]
+      properties:
+        ticket_id:
+          type: integer
+        supplier_code:
+          type: string
+        refundable:
+          type: boolean
+        reason:
+          type: string
+        refund_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        gross_amount:
+          type: integer
+        gross_refund_amount:
+          type: integer
+
+    RefundQuote:
+      type: object
+      required: [order_id, refundable, cash_amount, bonus_restored, bonus_revoked, items]
+      properties:
+        order_id:
+          type: integer
+        refundable:
+          type: boolean
+        reason:
+          type: string
+        cash_amount:
+          type: integer
+        bonus_restored:
+          type: integer
+        bonus_revoked:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RefundQuoteItem"
+
+    RefundStatus:
+      type: string
+      enum: [processing, success, failed, requires_review]
+
+    RefundResult:
+      type: object
+      required:
+        [refund_id, order_id, order_status, status, attempt_count, cash_amount, bonus_restored, bonus_revoked, items]
+      properties:
+        refund_id:
+          type: integer
+        order_id:
+          type: integer
+        order_status:
+          $ref: "#/components/schemas/OrderStatus"
+        status:
+          $ref: "#/components/schemas/RefundStatus"
+        supplier_refund_id:
+          type: string
+          format: uuid
+        failure_code:
+          type: string
+        attempt_count:
+          type: integer
+        next_retry_at:
+          type: string
+          format: date-time
+        cash_amount:
+          type: integer
+        bonus_restored:
+          type: integer
+        bonus_revoked:
+          type: integer
+        bonus_balance:
+          type: integer
+          minimum: 0
+        bonus_debt:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RefundQuoteItem"
+
+    BookingLookupInput:
+      type: object
+      oneOf:
+        - required: [ticket_number]
+          properties:
+            ticket_number: {}
+        - required: [order_number]
+          properties:
+            order_number: {}
+      properties:
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+      description: Передаётся ровно один номер.
+
+    BookingAccessRequest:
+      allOf:
+        - $ref: "#/components/schemas/BookingLookupInput"
+        - type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+              format: email
+
+    BookingAccessConfirm:
+      type: object
+      required: [challenge_id, code]
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: "^[0-9]{4}$"
+          example: "1234"
+
+    BookingAccessChallenge:
+      type: object
+      required: [challenge_id, message]
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+
+    BookingAccessResult:
+      type: object
+      required: [expires_at]
+      properties:
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        expires_at:
+          type: string
+          format: date-time
+
+    PublicSegment:
+      type: object
+      required: [carrier, carrier_code, route_number, from_city, to_city, departure_time, arrival_time]
+      properties:
+        carrier:
+          type: string
+        carrier_code:
+          type: string
+        route_number:
+          type: string
+        from_city:
+          type: string
+        to_city:
+          type: string
+        departure_time:
+          type: string
+          format: date-time
+        arrival_time:
+          type: string
+          format: date-time
+
+    PublicDirection:
+      allOf:
+        - $ref: "#/components/schemas/HistoryDirection"
+        - type: object
+          required: [transfer_count]
+          properties:
+            transfer_count:
+              type: integer
+
+    PublicTicket:
+      type: object
+      required: [ticket_number, passenger, segments]
+      properties:
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        passenger:
+          type: string
+          description: Имя и первая буква фамилии.
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicSegment"
+
+    PublicBookingSummary:
+      type: object
+      required: [kind, order_number, transport, ticket_count, passenger_count, directions]
+      properties:
+        kind:
+          type: string
+          enum: [ticket, order]
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        transport:
+          $ref: "#/components/schemas/Transport"
+        ticket_count:
+          type: integer
+        passenger_count:
+          type: integer
+        directions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicDirection"
+        ticket:
+          $ref: "#/components/schemas/PublicTicket"
+
+    BookingDetailTicket:
+      type: object
+      required: [ticket_number, status, transport, fare_type, passenger, document_type, document, segments]
+      properties:
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        transport:
+          $ref: "#/components/schemas/Transport"
+        fare_type:
+          $ref: "#/components/schemas/FareType"
+        passenger:
+          type: string
+          description: Имя и первая буква фамилии.
+        document_type:
+          $ref: "#/components/schemas/DocumentType"
+        document:
+          type: string
+          description: Маска и последние четыре символа номера.
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicSegment"
+
+    BookingDetails:
+      type: object
+      required:
+        [order_number, status, current_total_price, bonus_spent, bonus_earned, created_at, passenger_count, directions, tickets]
+      properties:
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        current_total_price:
+          type: integer
+        bonus_spent:
+          type: integer
+        bonus_earned:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        passenger_count:
+          type: integer
+        directions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicDirection"
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingDetailTicket"
+
+    BookingRefundSelection:
+      type: object
+      properties:
+        ticket_numbers:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/TicketNumber"
+        all:
+          type: boolean
+          default: false
+      description: Передаётся ровно одно из `ticket_numbers` или `all=true`.
+
+    BookingRefundQuoteItem:
+      type: object
+      required: [ticket_number, refundable, refund_percent, gross_amount, gross_refund_amount]
+      properties:
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        refundable:
+          type: boolean
+        reason:
+          type: string
+        refund_percent:
+          type: integer
+        gross_amount:
+          type: integer
+        gross_refund_amount:
+          type: integer
+
+    BookingRefundQuote:
+      type: object
+      required: [order_number, refundable, cash_amount, bonus_restored, bonus_revoked, items]
+      properties:
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        refundable:
+          type: boolean
+        reason:
+          type: string
+        cash_amount:
+          type: integer
+        bonus_restored:
+          type: integer
+        bonus_revoked:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingRefundQuoteItem"
+
+    BookingRefundResult:
+      type: object
+      required:
+        [order_number, order_status, status, attempt_count, cash_amount, bonus_restored, bonus_revoked, items]
+      properties:
+        order_number:
+          $ref: "#/components/schemas/OrderNumber"
+        order_status:
+          $ref: "#/components/schemas/OrderStatus"
+        status:
+          $ref: "#/components/schemas/RefundStatus"
+        supplier_refund_id:
+          type: string
+          format: uuid
+        failure_code:
+          type: string
+        attempt_count:
+          type: integer
+        next_retry_at:
+          type: string
+          format: date-time
+        cash_amount:
+          type: integer
+        bonus_restored:
+          type: integer
+        bonus_revoked:
+          type: integer
+        bonus_balance:
+          type: integer
+          minimum: 0
+        bonus_debt:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingRefundQuoteItem"
+
+    TripLookupInput:
+      type: object
+      oneOf:
+        - required: [ticket_number]
+          properties:
+            ticket_number: {}
+        - required: [route_number, date]
+          properties:
+            route_number: {}
+            date: {}
+      properties:
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        route_number:
+          type: string
+        date:
+          type: string
+          format: date
+      description: Передаётся ticket_number либо пара route_number + date.
+
+    ScheduledTrip:
+      type: object
+      required: [transport, carrier, carrier_code, route_number, from_city, to_city, departure_time, arrival_time]
+      properties:
+        transport:
+          $ref: "#/components/schemas/Transport"
+        carrier:
+          type: string
+        carrier_code:
+          type: string
+        route_number:
+          type: string
+        from_city:
+          type: string
+        to_city:
+          type: string
+        departure_time:
+          type: string
+          format: date-time
+        arrival_time:
+          type: string
+          format: date-time
+
+    TripLookupResult:
+      type: object
+      required: [trips]
+      properties:
+        ticket_number:
+          $ref: "#/components/schemas/TicketNumber"
+        route_number:
+          type: string
+        date:
+          type: string
+          format: date
+        trips:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduledTrip"
+
+    BonusTransaction:
+      type: object
+      required: [id, type, amount, created_at]
+      properties:
+        id:
+          type: integer
+        order_id:
+          type: integer
+        type:
+          type: string
+          enum: [earn, spend, rollback, refund_restore, refund_revoke, debt_create, debt_repay]
+        amount:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+
+    BonusTransactionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BonusTransaction"
+
+    OrderNumber:
+      type: string
+      pattern: "^[A-Z]{3}-[0-9]{5}$"
+      example: AHS-74539
+
+    TicketNumber:
+      type: string
+      pattern: "^([A-Z]{2}-[0-9]{8}|[0-9][A-Z][0-9]{2}[A-Z][0-9][A-Z]|[0-9]{6}[A-Z])$"
+      example: AV-20260821

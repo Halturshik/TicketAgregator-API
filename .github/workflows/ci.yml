@@ -98,6 +98,21 @@ jobs:
       - name: Integration tests with race detector
         run: go test -race -tags=integration ./internal/integration -count=1 -timeout=10m
 
+  openapi:
+    name: OpenAPI Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate OpenAPI contract
+        run: >-
+          docker run --rm
+          --volume "$PWD/docs:/spec:ro"
+          redocly/cli:2.53.3
+          lint --config /spec/redocly.yaml /spec/openapi.yaml
+
   docker:
     name: Docker Images
     runs-on: ubuntu-latest

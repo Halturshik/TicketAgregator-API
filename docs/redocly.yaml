@@ -1,0 +1,12 @@
+extends:
+  - recommended
+
+rules:
+  # Эти пути повторяют фактические chi routes с вложенным pattern "/".
+  no-path-trailing-slash: off
+  # Проект пока не публикуется под выбранной лицензией.
+  info-license: off
+  # Спецификация описывает локально запускаемый pet-проект.
+  no-server-example.com: off
+  # Для health, logout и справочника городов искусственный 4xx не нужен.
+  operation-4xx-response: off

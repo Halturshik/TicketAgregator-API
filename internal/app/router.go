@@ -146,6 +146,5 @@ func (api *API) Init(r *chi.Mux) {
 		r.Get("/history", api.Handle(api.BonusHandler.List))
 	})
 
-	//r.Get("/swagger/*", httpSwagger.Handler())
-
+	registerSwagger(r)
 }

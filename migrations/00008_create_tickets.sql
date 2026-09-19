@@ -6,7 +6,7 @@ SELECT 'up SQL query';
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
 	order_number VARCHAR(9) NOT NULL,
-    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    user_id INT REFERENCES users(id) ON DELETE RESTRICT,
     guest_email VARCHAR(255),
     guest_payment_token UUID UNIQUE,
     status VARCHAR(20) NOT NULL DEFAULT 'created',
