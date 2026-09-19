@@ -22,7 +22,7 @@ func (s *Service) Refund(ctx context.Context, userID *int, orderID int, input re
 
 	prepared, err := s.prepare(ctx, userID, orderID, input)
 	if err != nil {
-		return nil, mapErrorContext(ctx, err)
+		return s.resumeAfterPreparationError(ctx, userID, input, requestHash, err)
 	}
 	if !prepared.quote.Refundable {
 		return nil, mapErrorContext(ctx, refunds.ErrNotAllowed)
@@ -48,6 +48,23 @@ func (s *Service) Refund(ctx context.Context, userID *int, orderID int, input re
 		return s.resume(ctx, operation, userID, input.GuestPaymentToken, requestHash)
 	}
 	return s.execute(ctx, operation)
+}
+
+func (s *Service) resumeAfterPreparationError(
+	ctx context.Context,
+	userID *int,
+	input refunds.Input,
+	requestHash string,
+	preparationErr error,
+) (*refunds.Result, error) {
+	existing, err := s.repo.GetByKey(ctx, input.IdempotencyKey)
+	if err == nil {
+		return s.resume(ctx, existing, userID, input.GuestPaymentToken, requestHash)
+	}
+	if !errors.Is(err, refunds.ErrNotFound) {
+		return nil, mapErrorContext(ctx, err)
+	}
+	return nil, mapErrorContext(ctx, preparationErr)
 }
 
 func (s *Service) resume(

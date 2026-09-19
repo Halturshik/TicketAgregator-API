@@ -147,6 +147,29 @@ func TestRefundRetriesProcessingOperationWithSameKey(t *testing.T) {
 	}
 }
 
+func TestRefundResumesCommittedOperationAfterInitialLookupMiss(t *testing.T) {
+	now := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
+	repo, gateway, service, userID := refundFixture(now)
+	input := refunds.Input{TicketIDs: []int{repo.tickets[0].ID}, IdempotencyKey: refundTestKey}
+
+	first, err := service.Refund(context.Background(), &userID, repo.order.ID, input)
+	if err != nil {
+		t.Fatalf("first Refund() error = %v", err)
+	}
+	repo.getByKeyMisses = 1
+
+	repeated, err := service.Refund(context.Background(), &userID, repo.order.ID, input)
+	if err != nil {
+		t.Fatalf("repeated Refund() error = %v", err)
+	}
+	if repeated.Status != refunds.StatusSuccess || repeated.RefundID != first.RefundID {
+		t.Fatalf("repeated refund = %+v, want operation %d with status %s", repeated, first.RefundID, refunds.StatusSuccess)
+	}
+	if repo.createCalls != 1 || gateway.quoteCalls != 1 || gateway.executeCalls != 1 {
+		t.Fatalf("calls = creates:%d quotes:%d executes:%d, want 1 each", repo.createCalls, gateway.quoteCalls, gateway.executeCalls)
+	}
+}
+
 func TestReconciliationStopsAfterAttemptLimit(t *testing.T) {
 	now := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
 	repo, gateway, service, userID := refundFixture(now)
@@ -292,11 +315,12 @@ func (g *refundGateway) ExecuteRefund(_ context.Context, request supplier.Execut
 }
 
 type memoryRefundRepository struct {
-	order        refunds.OrderData
-	tickets      []refunds.TicketData
-	operation    *refunds.Operation
-	createCalls  int
-	bonusApplied bool
+	order          refunds.OrderData
+	tickets        []refunds.TicketData
+	operation      *refunds.Operation
+	getByKeyMisses int
+	createCalls    int
+	bonusApplied   bool
 }
 
 func (r *memoryRefundRepository) Load(context.Context, int, []int, bool) (*refunds.OrderData, []refunds.TicketData, error) {
@@ -305,6 +329,10 @@ func (r *memoryRefundRepository) Load(context.Context, int, []int, bool) (*refun
 }
 
 func (r *memoryRefundRepository) GetByKey(_ context.Context, key string) (*refunds.Operation, error) {
+	if r.getByKeyMisses > 0 {
+		r.getByKeyMisses--
+		return nil, refunds.ErrNotFound
+	}
 	if r.operation == nil || r.operation.IdempotencyKey != key {
 		return nil, refunds.ErrNotFound
 	}
