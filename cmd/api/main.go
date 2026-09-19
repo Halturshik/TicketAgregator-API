@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -70,7 +71,9 @@ func main() {
 }
 
 func run() error {
-	dotenvErr := godotenv.Load()
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("загрузка .env: %w", err)
+	}
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 
@@ -87,9 +90,6 @@ func run() error {
 		return fmt.Errorf("инициализация логирования: %w", err)
 	}
 	slog.SetDefault(log)
-	if dotenvErr != nil {
-		slog.Warn(".env файл не найден, будут использоваться переменные окружения")
-	}
 
 	dbConnection, err := postgres.ConnectDB(cfg)
 	if err != nil {

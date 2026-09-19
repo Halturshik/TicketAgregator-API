@@ -109,10 +109,13 @@ func LoadConfig() (*Config, error) {
 
 func LoadSupplierConfig() (*SupplierConfig, error) {
 	cfg := &SupplierConfig{
-		DBHost: os.Getenv("DB_HOST"), DBPort: os.Getenv("DB_PORT"),
-		DBUser: os.Getenv("DB_USER"), DBPassword: os.Getenv("DB_PASSWORD"),
-		DBName: os.Getenv("DB_NAME"), GRPCPort: os.Getenv("SUPPLIER_GRPC_PORT"),
-		LogFormat: os.Getenv("LOG_FORMAT"), LogLevel: os.Getenv("LOG_LEVEL"),
+		DBHost:     firstEnvironment("SUPPLIER_DB_HOST", "DB_HOST"),
+		DBPort:     firstEnvironment("SUPPLIER_DB_PORT", "DB_PORT"),
+		DBUser:     firstEnvironment("SUPPLIER_DB_USER", "DB_USER"),
+		DBPassword: firstEnvironment("SUPPLIER_DB_PASSWORD", "DB_PASSWORD"),
+		DBName:     firstEnvironment("SUPPLIER_DB_NAME", "DB_NAME"),
+		GRPCPort:   os.Getenv("SUPPLIER_GRPC_PORT"),
+		LogFormat:  os.Getenv("LOG_FORMAT"), LogLevel: os.Getenv("LOG_LEVEL"),
 	}
 	if cfg.DBHost == "" {
 		return nil, fmt.Errorf("DB_HOST не указан")
@@ -133,4 +136,13 @@ func LoadSupplierConfig() (*SupplierConfig, error) {
 		cfg.GRPCPort = "9090"
 	}
 	return cfg, nil
+}
+
+func firstEnvironment(names ...string) string {
+	for _, name := range names {
+		if value := os.Getenv(name); value != "" {
+			return value
+		}
+	}
+	return ""
 }

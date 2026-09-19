@@ -1,0 +1,119 @@
+name: ticket-aggregator
+
+services:
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      DB_HOST: api-db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      APP_PORT: "8080"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      JWT_SECRET: ${JWT_SECRET}
+      DOCUMENT_VERIFICATION_SECRET: ${DOCUMENT_VERIFICATION_SECRET}
+      SUPPLIER_GRPC_ADDRESS: supplier:9090
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      api-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      supplier:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready > /dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: on-failure
+    stop_grace_period: 35s
+
+  supplier:
+    build:
+      context: .
+      target: supplier
+    environment:
+      SUPPLIER_DB_HOST: supplier-db
+      SUPPLIER_DB_PORT: "5432"
+      SUPPLIER_DB_USER: ${SUPPLIER_DB_USER}
+      SUPPLIER_DB_PASSWORD: ${SUPPLIER_DB_PASSWORD}
+      SUPPLIER_DB_NAME: ${SUPPLIER_DB_NAME}
+      SUPPLIER_GRPC_PORT: "9090"
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    ports:
+      - "${SUPPLIER_GRPC_PORT:-9090}:9090"
+    depends_on:
+      supplier-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "./supplier-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: on-failure
+    stop_grace_period: 35s
+
+  api-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - api-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  supplier-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${SUPPLIER_DB_USER}
+      POSTGRES_PASSWORD: ${SUPPLIER_DB_PASSWORD}
+      POSTGRES_DB: ${SUPPLIER_DB_NAME}
+    ports:
+      - "${SUPPLIER_DB_PORT:-5433}:5432"
+    volumes:
+      - supplier-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  api-db-data:
+  supplier-db-data:
+  redis-data:
